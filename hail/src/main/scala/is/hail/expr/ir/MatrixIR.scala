@@ -14,6 +14,7 @@ import is.hail.io.fs.FS
 import is.hail.io.gen.MatrixGENReader
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
+import is.hail.io.database.MatrixDatabaseReader
 import is.hail.rvd._
 import is.hail.utils._
 import is.hail.variant._
@@ -89,6 +90,7 @@ object MatrixReader {
       case "MatrixGENReader" => MatrixGENReader.fromJValue(env.ctx, jv)
       case "MatrixPLINKReader" => MatrixPLINKReader.fromJValue(env.ctx, jv)
       case "MatrixVCFReader" => MatrixVCFReader.fromJValue(env.ctx, jv)
+      case "MatrixDatabaseReader" => MatrixDatabaseReader.fromJValue(env.ctx, jv)
     }
   }
 }

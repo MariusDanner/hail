@@ -13,6 +13,7 @@ import is.hail.io.gen.{ExportBGEN, ExportGen}
 import is.hail.io.index.StagedIndexWriter
 import is.hail.io.plink.ExportPlink
 import is.hail.io.vcf.ExportVCF
+import is.hail.io.database.ExportDatabase
 import is.hail.rvd.{RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.{EBaseStruct, EType}
 import is.hail.types.physical.stypes.interfaces._
@@ -28,7 +29,7 @@ object MatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(
       List(classOf[MatrixNativeWriter], classOf[MatrixVCFWriter], classOf[MatrixGENWriter],
-        classOf[MatrixBGENWriter], classOf[MatrixPLINKWriter], classOf[WrappedMatrixWriter]), typeHintFieldName = "name")
+        classOf[MatrixBGENWriter], classOf[MatrixPLINKWriter], classOf[WrappedMatrixWriter], classOf[MatrixDatabaseWriter]), typeHintFieldName = "name")
   }
 }
 
@@ -319,6 +320,16 @@ case class MatrixVCFWriter(
   tabix: Boolean = false
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportVCF(ctx, mv, path, append, exportType, metadata, tabix)
+}
+
+case class MatrixDatabaseWriter(
+  path: String,
+  append: Option[String] = None,
+  exportType: String = ExportType.CONCATENATED,
+  metadata: Option[VCFMetadata] = None,
+  tabix: Boolean = false
+) extends MatrixWriter {
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportDatabase(ctx, mv, path, append, exportType, metadata, tabix)
 }
 
 case class MatrixGENWriter(

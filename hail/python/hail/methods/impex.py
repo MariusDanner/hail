@@ -382,6 +382,162 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     Env.backend().execute(ir.MatrixWrite(dataset._mir, writer))
 
 
+@typecheck(dataset=oneof(MatrixTable),
+           output=str,
+           append_to_header=nullable(str),
+           parallel=nullable(ir.ExportType.checker),
+           metadata=nullable(dictof(str, dictof(str, dictof(str, str)))),
+           tabix=bool)
+def export_to_database(dataset, output, append_to_header=None, parallel=None, metadata=None, *, tabix=False):
+    """Export a :class:`.MatrixTable` to a database
+
+    .. include:: ../_templates/req_tvariant.rst
+
+    Examples
+    --------
+    Export to VCF as a block-compressed file:
+
+    >>> hl.export_to_database(dataset, 'output/example.vcf.bgz')
+
+    Notes
+    -----
+    :func:`.export_vcf` writes the dataset to disk in VCF format as described in the
+    `VCF 4.2 spec <https://samtools.github.io/hts-specs/VCFv4.2.pdf>`__.
+
+    Use the ``.vcf.bgz`` extension rather than ``.vcf`` in the output file name
+    for `blocked GZIP <http://www.htslib.org/doc/tabix.html>`__ compression.
+
+    Note
+    ----
+        We strongly recommended compressed (``.bgz`` extension) and parallel
+        output (`parallel` set to ``'separate_header'`` or
+        ``'header_per_shard'``) when exporting large VCFs.
+
+    Hail exports the fields of struct `info` as INFO fields, the elements of
+    ``set<str>`` `filters` as FILTERS, the value of str `rsid` as ID, and the
+    value of float64 `qual` as QUAL. No other row fields are exported.
+
+    The FORMAT field is generated from the entry schema, which
+    must be a :class:`.tstruct`.  There is a FORMAT
+    field for each field of the struct. If `dataset` is a :class:`.Table`,
+    then there will be no FORMAT field and the output will be a sites-only VCF.
+
+    INFO and FORMAT fields may be generated from Struct fields of type
+    :py:data:`.tcall`, :py:data:`.tint32`, :py:data:`.tfloat32`,
+    :py:data:`.tfloat64`, or :py:data:`.tstr`. If a field has type
+    :py:data:`.tint64`, every value must be a valid ``int32``. Arrays and sets
+    containing these types are also allowed but cannot be nested; for example,
+    ``array<array<int32>>`` is invalid. Arrays and sets are written with the
+    same comma-separated format. Fields of type :py:data:`.tbool` are also
+    permitted in `info` and will generate INFO fields of VCF type Flag.
+
+    Hail also exports the name, length, and assembly of each contig as a VCF
+    header line, where the assembly is set to the :class:`.ReferenceGenome`
+    name.
+
+    Consider the workflow of importing a VCF and immediately exporting the
+    dataset back to VCF. The output VCF header will contain FORMAT lines for
+    each entry field and INFO lines for all fields in `info`, but these lines
+    will have empty Description fields and the Number and Type fields will be
+    determined from their corresponding Hail types. To output a desired
+    Description, Number, and/or Type value in a FORMAT or INFO field or to
+    specify FILTER lines, use the `metadata` parameter to supply a dictionary
+    with the relevant information. See
+    :func:`get_vcf_metadata` for how to obtain the
+    dictionary corresponding to the original VCF, and for info on how this
+    dictionary should be structured.
+
+    The output VCF header will also contain CONTIG lines
+    with ID, length, and assembly fields derived from the reference genome of
+    the dataset.
+
+    The output VCF header will `not` contain lines added by external tools
+    (such as bcftools and GATK) unless they are explicitly inserted using the
+    `append_to_header` parameter.
+
+    Warning
+    -------
+
+    INFO fields stored at VCF import are `not` automatically modified to
+    reflect filtering of samples or genotypes, which can affect the value of
+    AC (allele count), AF (allele frequency), AN (allele number), etc. If a
+    filtered dataset is exported to VCF without updating `info`, downstream
+    tools which may produce erroneous results. The solution is to create new
+    fields in `info` or overwrite existing fields. For example, in order to
+    produce an accurate `AC` field, one can run :func:`.variant_qc` and copy
+    the `variant_qc.AC` field to `info.AC` as shown below.
+
+    >>> ds = dataset.filter_entries(dataset.GQ >= 20)
+    >>> ds = hl.variant_qc(ds)
+    >>> ds = ds.annotate_rows(info = ds.info.annotate(AC=ds.variant_qc.AC)) # doctest: +SKIP
+    >>> hl.export_vcf(ds, 'output/example.vcf.bgz')
+
+    Warning
+    -------
+    Do not export to a path that is being read from in the same pipeline.
+
+    Parameters
+    ----------
+    dataset : :class:`.MatrixTable`
+        Dataset.
+    output : :class:`str`
+        Path of .vcf or .vcf.bgz file to write.
+    append_to_header : :class:`str`, optional
+        Path of file to append to VCF header.
+    parallel : :class:`str`, optional
+        If ``'header_per_shard'``, return a set of VCF files (one per
+        partition) rather than serially concatenating these files. If
+        ``'separate_header'``, return a separate VCF header file and a set of
+        VCF files (one per partition) without the header. If ``None``,
+        concatenate the header and all partitions into one VCF file.
+    metadata : :obj:`dict` [:obj:`str`, :obj:`dict` [:obj:`str`, :obj:`dict` [obj:`str`, obj:`str`]]]`, optional
+        Dictionary with information to fill in the VCF header. See
+        :func:`get_vcf_metadata` for how this
+        dictionary should be structured.
+    tabix : :obj:`bool`, optional
+        If true, writes a tabix index for the output VCF.
+        **Note**: This feature is experimental, and the interface and defaults
+        may change in future versions.
+    """
+    if isinstance(dataset, Table):
+        mt = MatrixTable.from_rows_table(dataset)
+        dataset = mt.key_cols_by(sample="")
+
+    require_col_key_str(dataset, 'export_vcf')
+    require_row_key_variant(dataset, 'export_vcf')
+
+    info_fields = list(dataset.info) if "info" in dataset.row else []
+    invalid_info_fields = [f for f in info_fields if not re.fullmatch(r"^([A-Za-z_][0-9A-Za-z_.]*|1000G)", f)]
+    if invalid_info_fields:
+        invalid_info_str = ''.join(f'\n    {f!r}' for f in invalid_info_fields)
+        warning('export_vcf: the following info field names are invalid in VCF 4.3 and may not work with some tools: ' + invalid_info_str)
+
+    row_fields_used = {'rsid', 'info', 'filters', 'qual'}
+
+    fields_dropped = []
+    for f in dataset.globals:
+        fields_dropped.append((f, 'global'))
+    for f in dataset.col_value:
+        fields_dropped.append((f, 'column'))
+    for f in dataset.row_value:
+        if f not in row_fields_used:
+            fields_dropped.append((f, 'row'))
+
+    if fields_dropped:
+        ignored_str = ''.join(f'\n    {f!r} ({axis})' for f, axis in fields_dropped)
+        warning('export_vcf: ignored the following fields:' + ignored_str)
+        dataset = dataset.drop(*(f for f, _ in fields_dropped))
+
+    parallel = ir.ExportType.default(parallel)
+
+    writer = ir.MatrixDatabaseWriter(output,
+                                append_to_header,
+                                parallel,
+                                metadata,
+                                tabix)
+    Env.backend().execute(ir.MatrixWrite(dataset._mir, writer))
+
+
 @typecheck(dataset=oneof(MatrixTable, Table),
            output=str,
            append_to_header=nullable(str),
@@ -2078,6 +2234,118 @@ def get_vcf_metadata(path):
     """
 
     return Env.backend().parse_vcf_metadata(path)
+
+
+@typecheck(path=oneof(str, sequenceof(str)),
+           samples=sequenceof(str),
+           variants=sequenceof(str),
+           annotations=bool,
+           entry_fields=sequenceof(str),
+           tolerance=numeric,
+           min_partitions=nullable(int),
+           reference_genome=nullable(reference_genome_type),
+           contig_recoding=nullable(dictof(str, str)),
+           skip_invalid_loci=bool)
+def import_from_database(path=[],
+               samples=[],
+               variants=[],
+               annotations=False,
+               entry_fields=['GT'],
+               tolerance=0.2,
+               min_partitions=None,
+               reference_genome='default',
+               contig_recoding=None,
+               skip_invalid_loci=False) -> MatrixTable:
+    """
+    Import GEN file(s) as a :class:`.MatrixTable`.
+
+    Examples
+    --------
+
+    >>> ds = hl.import_gen('data/example.gen',
+    ...                    sample_file='data/example.sample',
+    ...                    reference_genome='GRCh37')
+
+    Notes
+    -----
+
+    For more information on the GEN file format, see `here
+    <http://www.stats.ox.ac.uk/%7Emarchini/software/gwas/file_format.html#mozTocId40300>`__.
+
+    If the GEN file has only 5 columns before the start of the genotype
+    probability data (chromosome field is missing), you must specify the
+    chromosome using the `chromosome` parameter.
+
+    To load multiple files at the same time, use :ref:`Hadoop Glob Patterns
+    <sec-hadoop-glob>`.
+
+    **Column Fields**
+
+    - `s` (:py:data:`.tstr`) -- Column key. This is the sample ID imported
+      from the first column of the sample file.
+
+    **Row Fields**
+
+    - `locus` (:class:`.tlocus` or :class:`.tstruct`) -- Row key. The genomic
+      location consisting of the chromosome (1st column if present, otherwise
+      given by `chromosome`) and position (3rd column if `chromosome` is not
+      defined). If `reference_genome` is defined, the type will be
+      :class:`.tlocus` parameterized by `reference_genome`. Otherwise, the type
+      will be a :class:`.tstruct` with two fields: `contig` with type
+      :py:data:`.tstr` and `position` with type :py:data:`.tint32`.
+    - `alleles` (:class:`.tarray` of :py:data:`.tstr`) -- Row key. An array
+      containing the alleles of the variant. The reference allele (4th column if
+      `chromosome` is not defined) is the first element of the array and the
+      alternate allele (5th column if `chromosome` is not defined) is the second
+      element.
+    - `varid` (:py:data:`.tstr`) -- The variant identifier. 2nd column of GEN
+      file if chromosome present, otherwise 1st column.
+    - `rsid` (:py:data:`.tstr`) -- The rsID. 3rd column of GEN file if
+      chromosome present, otherwise 2nd column.
+
+    **Entry Fields**
+
+    - `GT` (:py:data:`.tcall`) -- The hard call corresponding to the genotype with
+      the highest probability.
+    - `GP` (:class:`.tarray` of :py:data:`.tfloat64`) -- Genotype probabilities
+      as defined by the GEN file spec. The array is set to missing if the
+      sum of the probabilities is a distance greater than the `tolerance`
+      parameter from 1.0. Otherwise, the probabilities are normalized to sum to
+      1.0. For example, the input ``[0.98, 0.0, 0.0]`` will be normalized to
+      ``[1.0, 0.0, 0.0]``.
+
+    Parameters
+    ----------
+    path : :class:`str` or :obj:`list` of :obj:`str`
+        GEN files to import.
+    sample_file : :class:`str`
+        Sample file to import.
+    tolerance : :obj:`float`
+        If the sum of the genotype probabilities for a genotype differ from 1.0
+        by more than the tolerance, set the genotype to missing.
+    min_partitions : :obj:`int`, optional
+        Number of partitions.
+    chromosome : :class:`str`, optional
+        Chromosome if not included in the GEN file
+    reference_genome : :class:`str` or :class:`.ReferenceGenome`, optional
+        Reference genome to use.
+    contig_recoding : :obj:`dict` of :class:`str` to :obj:`str`, optional
+        Dict of old contig name to new contig name. The new contig name must be
+        in the reference genome given by `reference_genome`.
+    skip_invalid_loci : :obj:`bool`
+        If ``True``, skip loci that are not consistent with `reference_genome`.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+    """
+    path = wrap_to_list(path)
+    rg = reference_genome.name if reference_genome else None
+    if contig_recoding is None:
+        contig_recoding = {}
+    return MatrixTable(ir.MatrixRead(ir.MatrixDatabaseReader(
+        path, samples, variants, annotations, entry_fields, min_partitions, tolerance, rg, contig_recoding, skip_invalid_loci)))
+
 
 
 @typecheck(path=oneof(str, sequenceof(str)),

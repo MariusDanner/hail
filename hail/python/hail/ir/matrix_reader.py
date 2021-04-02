@@ -89,6 +89,35 @@ class MatrixRangeReader(MatrixReader):
             other.n_cols == self.n_cols and \
             other.n_partitions == self.n_partitions
 
+class MatrixDatabaseReader(MatrixReader):
+    @typecheck_method(files=sequenceof(str), samples=sequenceof(str), variants=sequenceof(str),
+                      annotations=bool, entry_fields=sequenceof(str),
+                      min_partitions=nullable(int), tolerance=float, rg=nullable(str),
+                      contig_recoding=dictof(str, str), skip_invalid_loci=bool)
+    def __init__(self, files, samples, variants, annotations, entry_fields, min_partitions, tolerance,
+                 rg, contig_recoding, skip_invalid_loci):
+        self.config = {
+            'name': 'MatrixDatabaseReader',
+            'files': files,
+            'samples': samples,
+            'variants': variants,
+            'annotations': annotations,
+            'entryFields': entry_fields,
+            'nPartitions': min_partitions,
+            'tolerance': tolerance,
+            'rg': rg,
+            'contigRecoding': contig_recoding if contig_recoding else {},
+            'skipInvalidLoci': skip_invalid_loci
+        }
+
+    def render(self, r):
+        return escape_str(json.dumps(self.config))
+
+    def __eq__(self, other):
+        return isinstance(other, MatrixDatabaseReader) and \
+            self.config == other.config
+
+
 
 class MatrixVCFReader(MatrixReader):
     @typecheck_method(path=oneof(str, sequenceof(str)),

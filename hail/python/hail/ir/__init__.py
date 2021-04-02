@@ -48,13 +48,13 @@ from .blockmatrix_ir import BlockMatrixRead, BlockMatrixMap, BlockMatrixMap2, \
 from .utils import filter_predicate_with_keep, make_filter_and_replace
 from .matrix_reader import MatrixReader, MatrixNativeReader, MatrixRangeReader, \
     MatrixVCFReader, MatrixBGENReader, TextMatrixReader, MatrixPLINKReader, \
-    MatrixGENReader
+    MatrixGENReader, MatrixDatabaseReader
 from .table_reader import TableReader, TableNativeReader, TextTableReader, \
     TableFromBlockMatrixNativeReader
 from .blockmatrix_reader import BlockMatrixReader, BlockMatrixNativeReader, \
     BlockMatrixBinaryReader, BlockMatrixPersistReader
 from .matrix_writer import MatrixWriter, MatrixNativeWriter, MatrixVCFWriter, \
-    MatrixGENWriter, MatrixBGENWriter, MatrixPLINKWriter, MatrixNativeMultiWriter
+    MatrixGENWriter, MatrixBGENWriter, MatrixPLINKWriter, MatrixNativeMultiWriter, MatrixDatabaseWriter
 from .table_writer import TableWriter, TableNativeWriter, TableTextWriter
 from .blockmatrix_writer import BlockMatrixWriter, BlockMatrixNativeWriter, \
     BlockMatrixBinaryWriter, BlockMatrixRectanglesWriter, \
@@ -249,12 +249,14 @@ __all__ = [
     'MatrixNativeReader',
     'MatrixRangeReader',
     'MatrixVCFReader',
+    'MatrixDatabaseReader',
     'MatrixBGENReader',
     'TextMatrixReader',
     'MatrixPLINKReader',
     'MatrixGENReader',
     'MatrixWriter',
     'MatrixNativeWriter',
+    'MatrixDatabaseWriter',
     'MatrixVCFWriter',
     'MatrixGENWriter',
     'MatrixBGENWriter',

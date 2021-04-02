@@ -55,6 +55,36 @@ class MatrixNativeWriter(MatrixWriter):
             other.partitions_type == self.partitions_type and \
             other.checkpoint_file == self.checkpoint_file
 
+class MatrixDatabaseWriter(MatrixWriter):
+    @typecheck_method(path=str,
+                      append=nullable(str),
+                      export_type=ExportType.checker,
+                      metadata=nullable(dictof(str, dictof(str, dictof(str, str)))),
+                      tabix=bool)
+    def __init__(self, path, append, export_type, metadata, tabix):
+        self.path = path
+        self.append = append
+        self.export_type = export_type
+        self.metadata = metadata
+        self.tabix = tabix
+
+    def render(self):
+        writer = {'name': 'MatrixDatabaseWriter',
+                  'path': self.path,
+                  'append': self.append,
+                  'exportType': self.export_type,
+                  'metadata': self.metadata,
+                  'tabix': self.tabix}
+        return escape_str(json.dumps(writer))
+
+    def __eq__(self, other):
+        return isinstance(other, MatrixDatabaseWriter) and \
+            other.path == self.path and \
+            other.append == self.append and \
+            other.export_type == self.export_type and \
+            other.metadata == self.metadata and \
+            other.tabix == self.tabix
+
 
 class MatrixVCFWriter(MatrixWriter):
     @typecheck_method(path=str,
