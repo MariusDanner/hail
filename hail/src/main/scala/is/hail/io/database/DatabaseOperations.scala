@@ -1,5 +1,7 @@
 package is.hail.io.database
 
+import scala.util.Properties
+
 import is.hail
 import is.hail.HailContext
 import is.hail.backend.BroadcastValue
@@ -71,7 +73,7 @@ object DatabaseOperations {
     }
 
     variantOccurrencePrepared.executeBatch()
-    }
+  }
 
   def getOrCreatePatients(connection : Connection, patients : IndexedSeq[String]): Array[Long] = {
     var patientsMap = Map[String, Long]()
@@ -94,17 +96,23 @@ object DatabaseOperations {
       patientsMap += (mrn -> id)
     }
     val patientsInsertQuery = "INSERT INTO patients (mrn) VALUES (?)"
+    val usingHana = "com.sap.db.jdbc.Driver".equals(Properties.envOrElse("DB_DRIVER", ""))
     patients.foreach { mrn =>
       if (! patientsMap.contains(mrn)) {
-        val insertStatement = connection.prepareStatement(patientsInsertQuery, Statement.RETURN_GENERATED_KEYS)
+        val insertStatement = if (usingHana) connection.prepareStatement(patientsInsertQuery) else connection.prepareStatement(patientsInsertQuery, Statement.RETURN_GENERATED_KEYS)
         insertStatement.setString(1, mrn)
         insertStatement.executeUpdate()
-        val insertRs = insertStatement.getGeneratedKeys()
-        if (insertRs.next()) {
-          val id = insertRs.getLong(1)
+        if (usingHana) {
+          val id = getHanaSequenceValue(connection, "PATIENTS")
           patientsMap += (mrn->id)
         } else {
-          warn("Could not insert mrn " + mrn)
+          val insertRs = insertStatement.getGeneratedKeys()
+          if (insertRs.next()) {
+            val id = insertRs.getLong(1)
+            patientsMap += (mrn->id)
+          } else {
+            warn("Could not insert mrn " + mrn)
+          }
         }
       }
     }
@@ -115,14 +123,20 @@ object DatabaseOperations {
 
   def createDatasourceEntry(connection: Connection, path: String) : Long = {
     val datasourceQuery = "INSERT INTO datasources (filename) VALUES (?)"
-    val datasourcePrepared = connection.prepareStatement(datasourceQuery, Statement.RETURN_GENERATED_KEYS)
+    val usingHana = "com.sap.db.jdbc.Driver".equals(Properties.envOrElse("DB_DRIVER", ""))
+    val datasourcePrepared = if (usingHana) connection.prepareStatement(datasourceQuery) else connection.prepareStatement(datasourceQuery, Statement.RETURN_GENERATED_KEYS)
     datasourcePrepared.setString(1, path)
     datasourcePrepared.executeUpdate()
 
-    val rs = datasourcePrepared.getGeneratedKeys()
     var datasourceId = 0L
-    if (rs.next())
-      datasourceId = rs.getLong(1)
+
+    if (usingHana) {
+      datasourceId = getHanaSequenceValue(connection, "DATASOURCES")
+    } else {
+      val rs = datasourcePrepared.getGeneratedKeys()
+      if (rs.next())
+        datasourceId = rs.getLong(1)
+    }
     datasourceId
   }
 
@@ -257,7 +271,8 @@ object DatabaseOperations {
 
   def writeVariant(connection: Connection, variant: Variant, datasourceId: Long) : Long = {
     val variantQuery = "INSERT INTO variants (datasource_id, chromosome, position, reference, alternative, snpid, rsid, quality, filters) VALUES (?,?,?,?,?,?,?,?,?)"
-    val variantsPrepared = connection.prepareStatement(variantQuery, Statement.RETURN_GENERATED_KEYS)
+    val usingHana = "com.sap.db.jdbc.Driver".equals(Properties.envOrElse("DB_DRIVER", ""))
+    val variantsPrepared = if (usingHana) connection.prepareStatement(variantQuery) else connection.prepareStatement(variantQuery, Statement.RETURN_GENERATED_KEYS)
     variantsPrepared.setLong(1, datasourceId)
     variantsPrepared.setString(2, variant.chromosome)
     variantsPrepared.setInt(3, variant.position)
@@ -286,12 +301,45 @@ object DatabaseOperations {
     variantsPrepared.executeUpdate()
 
     var variantId = 0L
-    val rs = variantsPrepared.getGeneratedKeys()
-    if (rs.next())
-      variantId = rs.getLong(1)
+    if (usingHana) {
+      variantId = getHanaSequenceValue(connection, "VARIANTS")
+    } else {
+      val rs = variantsPrepared.getGeneratedKeys()
+      if (rs.next())
+        variantId = rs.getLong(1)
+    }
     variantId
   }
 
+  def getHanaSequenceValue(connection: Connection, tableName: String): Long = {
+    val columnIdQuery = "SELECT column_id FROM table_columns WHERE table_name = ? AND column_name = 'ID'"
+    val sequenceNameQuery = "select sequence_name from sequences where sequence_name like ?"
+
+    val columnIdStatement = connection.prepareStatement(columnIdQuery)
+    columnIdStatement.setString(1, tableName)
+    val columnIdResultSet = columnIdStatement.executeQuery()
+    var columnId = ""
+    if (columnIdResultSet.next()) {
+      columnId = columnIdResultSet.getString("column_id")
+    }
+
+    val sequenceNameStatement = connection.prepareStatement(sequenceNameQuery)
+    sequenceNameStatement.setString(1, "%" + columnId + "%")
+    val sequenceNameResultSet = sequenceNameStatement.executeQuery()
+    var sequenceName = ""
+    if (sequenceNameResultSet.next()) {
+      sequenceName = sequenceNameResultSet.getString("sequence_name")
+    }
+
+    val sequenceValueQuery = "select " + sequenceName + ".currval as val from dummy"
+    val sequenceValueStatement = connection.createStatement()
+    val sequenceValueResultSet = sequenceValueStatement.executeQuery(sequenceValueQuery)
+    var sequenceValue = -1L
+    if (sequenceValueResultSet.next()) {
+      sequenceValue = sequenceValueResultSet.getLong("val")
+    }
+    sequenceValue
+  }
 }
 
 case class Variant(id: Option[Int], chromosome: String, position: Int, reference: Option[String], alternative: Option[String], quality: Option[Double], rsId: Option[String])

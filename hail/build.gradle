@@ -231,10 +231,10 @@ dependencies {
 
     bundled 'com.kohlschutter.junixsocket:junixsocket-core:2.3.2'
     bundled group: 'org.postgresql', name: 'postgresql', version: '42.2.19'
-    bundled group: 'com.sap.cloud.db.jdbc', name: 'ngdbc', version: '2.7.15', ext: 'pom'
     bundled group: 'org.cache2k', name: 'cache2k-api', version: '2.0.0.Final'
     bundled group: 'org.cache2k', name: 'cache2k-core', version: '2.0.0.Final'
     bundled files('libs/SnpEff-5.0.jar')
+    bundled files('libs/ngdbc-2.7.15.jar')
 }
 
 task(checkSettings) doLast {
