@@ -19,7 +19,6 @@ import java.sql.SQLException;
 import org.cache2k.Cache;
 import org.cache2k.CacheManager;
 
-import org.snpeff.align.VcfRefAltAlign;
 import org.snpeff.interval.Gene;
 import org.snpeff.interval.Cds;
 import org.snpeff.interval.Chromosome;
