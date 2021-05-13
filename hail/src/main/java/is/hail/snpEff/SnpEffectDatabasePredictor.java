@@ -24,6 +24,7 @@ import org.snpeff.snpEffect.VariantEffectStructural;
 import java.util.List;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.lang.System;
 import org.cache2k.Cache;
 import org.cache2k.Cache2kBuilder;
 import org.cache2k.CacheManager;
@@ -42,7 +43,8 @@ public class SnpEffectDatabasePredictor {
 	private SnpEffectDatabaseHelper snpEffectDbHelper;
 
     public SnpEffectDatabasePredictor() {
-        new Config("GRCh38.99", "/home/Marius.Danner/snpEff/snpEff.config");
+		String configPath = System.getenv().getOrDefault("SNPEFF_CONFIG", "/snpEff.config");
+        new Config("GRCh38.99", configPath);
 		snpEffectDbHelper = new SnpEffectDatabaseHelper(DatabaseConnector.connectToDatabase(false));
 
         genome = snpEffectDbHelper.loadGenome("GRCh38.99");

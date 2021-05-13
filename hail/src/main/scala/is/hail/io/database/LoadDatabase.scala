@@ -187,7 +187,6 @@ class MatrixDatabaseReader(
       ContextRDD.weaken(rdd).cmapPartitions { (ctx, it) =>
         val rvb = ctx.rvb
         val connection = DatabaseConnector.connectToDatabase(false)
-
         val predictor = new SnpEffectDatabasePredictor()
 
         it.map { variant =>
