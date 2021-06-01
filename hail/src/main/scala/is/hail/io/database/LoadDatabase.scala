@@ -44,7 +44,7 @@ object MatrixDatabaseReader {
 
     val connection = DatabaseConnector.connectToDatabase(false)
 
-    val samples = if (params.samples.length > 0) params.samples else DatabaseOperations.getAllPatients(connection)
+    val samples = if (params.samples.length > 0) DatabaseOperations.getPatients(connection, params.samples) else DatabaseOperations.getAllPatients(connection)
     val nSamples = samples.length
 
     // FIXME: can't specify multiple chromosomes
@@ -54,6 +54,8 @@ object MatrixDatabaseReader {
 
     info(s"Number of variants: $nVariants")
     info(s"Number of samples: $nSamples")
+
+    val sampleIds = DatabaseOperations.getPatientIds(connection, samples)
 
     connection.close()
 
@@ -94,7 +96,7 @@ object MatrixDatabaseReader {
       entryType = TStruct(entryEntries:_*)
         )
 
-    new MatrixDatabaseReader(params, fullMatrixType, samples, variants, referenceGenome)
+    new MatrixDatabaseReader(params, fullMatrixType, samples, sampleIds, variants, referenceGenome)
   }
 }
 
@@ -114,6 +116,7 @@ class MatrixDatabaseReader(
   val params: MatrixDatabaseReaderParameters,
   val fullMatrixType: MatrixType,
   samples: Array[String],
+  sampleIds: Array[Int],
   variantsArray: Array[Variant],
   referenceGenome: Option[ReferenceGenome]
 ) extends MatrixHybridReader {
@@ -134,7 +137,7 @@ class MatrixDatabaseReader(
 
     val rdd = sc.parallelize(variantsArray)
     val rg = referenceGenome
-    val localSamples = samples
+    val localSamples = sampleIds
 
     val requestedType = tr.typ
     val requestedRowType = requestedType.rowType
