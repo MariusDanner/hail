@@ -48,7 +48,7 @@ object MatrixDatabaseReader {
     val nSamples = samples.length
 
     // FIXME: can't specify multiple chromosomes
-    val variants = DatabaseOperations.loadVariants(connection, params.files, params.variants)
+    val variants = DatabaseOperations.loadVariants(connection, params.files, params.ranges)
 
     val nVariants = variants.length
 
@@ -101,7 +101,7 @@ object MatrixDatabaseReader {
 case class MatrixDatabaseReaderParameters(
   files: Array[String],
   samples: Array[String],
-  variants: Array[String],
+  ranges: Array[String],
   annotations: Boolean,
   entryFields: Array[String],
   nPartitions: Option[Int],

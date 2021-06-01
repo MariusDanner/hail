@@ -153,7 +153,9 @@ object DatabaseOperations {
 
   def loadVariants(connection: Connection, files: Array[String], inputVariants: Array[String]) : Array[Variant] = {
     var selectQueryBuilder = new StringBuilder("SELECT v.id, chromosome, position, reference, alternative, rsid, quality from variants v JOIN datasources d ON v.datasource_id = d.id")
+    var useAnd = false
     if (files.length > 0) {
+      useAnd = true
       selectQueryBuilder.append(" WHERE d.filename IN(")
       files.foreach { file =>
         selectQueryBuilder.append("'")
@@ -165,20 +167,36 @@ object DatabaseOperations {
     }
 
     if (inputVariants.length > 0) {
-      if (files.length > 0) {
-        selectQueryBuilder.append(" AND ")
+      if (useAnd) {
+        selectQueryBuilder.append(" AND (")
       } else {
-        selectQueryBuilder.append(" WHERE ")
+        selectQueryBuilder.append(" WHERE (")
+        useAnd = true
       }
-      selectQueryBuilder.append("v.rsid IN (")
-      inputVariants.foreach { inputVariants =>
-        selectQueryBuilder.append("'")
-        selectQueryBuilder.append(inputVariants)
-        selectQueryBuilder.append("',")
+      var useOr = false
+
+      inputVariants.foreach { inputRange =>
+        val rangeParams = inputRange.split(":")
+
+        if (useOr) {
+          selectQueryBuilder.append(" OR ")
+        } else {
+          useOr = true
+        }
+
+        selectQueryBuilder.append("(v.chromosome = '")
+        selectQueryBuilder.append(rangeParams(0))
+        selectQueryBuilder.append("' AND position >= ")
+        selectQueryBuilder.append(rangeParams(1))
+        selectQueryBuilder.append(" AND position < ")
+        selectQueryBuilder.append(rangeParams(2))
+        selectQueryBuilder.append(")")
       }
-      selectQueryBuilder.deleteCharAt(selectQueryBuilder.length -1)
       selectQueryBuilder.append(")")
     }
+
+    info(selectQueryBuilder.toString())
+
     val selectPrepared = connection.prepareStatement(selectQueryBuilder.toString())
 
     val rs = selectPrepared.executeQuery()

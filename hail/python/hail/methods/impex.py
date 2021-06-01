@@ -2238,7 +2238,7 @@ def get_vcf_metadata(path):
 
 @typecheck(path=oneof(str, sequenceof(str)),
            samples=sequenceof(str),
-           variants=sequenceof(str),
+           ranges=sequenceof(str),
            annotations=bool,
            entry_fields=sequenceof(str),
            tolerance=numeric,
@@ -2248,7 +2248,7 @@ def get_vcf_metadata(path):
            skip_invalid_loci=bool)
 def import_from_database(path=[],
                samples=[],
-               variants=[],
+               ranges=[],
                annotations=False,
                entry_fields=['GT'],
                tolerance=0.2,
@@ -2344,7 +2344,7 @@ def import_from_database(path=[],
     if contig_recoding is None:
         contig_recoding = {}
     return MatrixTable(ir.MatrixRead(ir.MatrixDatabaseReader(
-        path, samples, variants, annotations, entry_fields, min_partitions, tolerance, rg, contig_recoding, skip_invalid_loci)))
+        path, samples, ranges, annotations, entry_fields, min_partitions, tolerance, rg, contig_recoding, skip_invalid_loci)))
 
 
 
