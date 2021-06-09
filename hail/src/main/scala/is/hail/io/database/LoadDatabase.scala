@@ -62,7 +62,7 @@ object MatrixDatabaseReader {
     var rowEntries = Array(
         "locus" -> TLocus.schemaFromRG(referenceGenome),
         "alleles" -> TArray(TString),
-        // "quality" -> TFloat32,
+        "qual" -> TFloat64,
         "rsid" -> TString)
 
     if (params.annotations) {
@@ -153,6 +153,7 @@ class MatrixDatabaseReader(
     var rowTypes = Map(
       "locus" -> requestedRowType.fieldOption("locus").map(_.typ),
       "alleles" -> requestedRowType.fieldOption("alleles").map(_.typ),
+      "qual" -> requestedRowType.fieldOption("qual").map(_.typ),
       "rsid" -> requestedRowType.fieldOption("rsid").map(_.typ)
     )
 
@@ -193,7 +194,6 @@ class MatrixDatabaseReader(
         val predictor = new SnpEffectDatabasePredictor()
 
         it.map { variant =>
-
           rvb.start(localRVDType.rowType)
           rvb.startStruct()
 
@@ -210,6 +210,10 @@ class MatrixDatabaseReader(
 
           rowTypes("locus").foreach(rvb.addAnnotation(_, locus))
           rowTypes("alleles").foreach(rvb.addAnnotation(_, alleles))
+          variant.quality match {
+            case Some(quality) => rowTypes("qual").foreach(rvb.addAnnotation(_, quality))
+            case None => rowTypes("qual").foreach(rvb.addAnnotation(_, null))
+          }
           variant.rsId match {
             case Some(rsId) => rowTypes("rsid").foreach(rvb.addAnnotation(_, rsId))
             case None => rowTypes("rsid").foreach(rvb.addAnnotation(_, null))

@@ -234,7 +234,7 @@ object DatabaseOperations {
       }
       selectQueryBuilder.append(")")
     }
-
+    selectQueryBuilder.append(" ORDER BY chromosome, position, reference, alternative ASC")
     info(selectQueryBuilder.toString())
 
     val selectPrepared = connection.prepareStatement(selectQueryBuilder.toString())
