@@ -192,7 +192,7 @@ object DatabaseOperations {
   }
 
   def loadVariants(connection: Connection, files: Array[String], inputVariants: Array[String]) : Array[Variant] = {
-    var selectQueryBuilder = new StringBuilder("SELECT v.id, chromosome, position, reference, alternative, rsid, quality from variants v JOIN datasources d ON v.datasource_id = d.id")
+    var selectQueryBuilder = new StringBuilder("SELECT v.id, chromosome, position, reference, alternative, rsid, quality, string_agg(db.id, ',') as dbsnpid from variants v JOIN datasources d ON v.datasource_id = d.id left outer join dbsnp db on v.chromosome = db.chrom and v.position = db.pos and v.reference = db.ref and v.alternative = db.alt")
     var useAnd = false
     if (files.length > 0) {
       useAnd = true
@@ -216,25 +216,30 @@ object DatabaseOperations {
       var useOr = false
 
       inputVariants.foreach { inputRange =>
-        val rangeParams = inputRange.split(":")
-
         if (useOr) {
           selectQueryBuilder.append(" OR ")
         } else {
           useOr = true
         }
 
-        selectQueryBuilder.append("(v.chromosome = '")
-        selectQueryBuilder.append(rangeParams(0))
-        selectQueryBuilder.append("' AND position >= ")
-        selectQueryBuilder.append(rangeParams(1))
-        selectQueryBuilder.append(" AND position < ")
-        selectQueryBuilder.append(rangeParams(2))
-        selectQueryBuilder.append(")")
+        if (inputRange.startsWith("rs")) {
+          selectQueryBuilder.append("(v.rsid = '" + inputRange + "' OR db.id = '" + inputRange + "')")
+        } else {
+          val rangeParams = inputRange.split(":")
+
+          selectQueryBuilder.append("(v.chromosome = '")
+          selectQueryBuilder.append(rangeParams(0))
+          selectQueryBuilder.append("' AND position >= ")
+          selectQueryBuilder.append(rangeParams(1))
+          selectQueryBuilder.append(" AND position < ")
+          selectQueryBuilder.append(rangeParams(2))
+          selectQueryBuilder.append(")")
+        }
+
       }
       selectQueryBuilder.append(")")
     }
-    selectQueryBuilder.append(" ORDER BY chromosome, position, reference, alternative ASC")
+    selectQueryBuilder.append(" GROUP BY v.id, chromosome, position, reference, alternative, rsid, quality ORDER BY chromosome, position, reference, alternative ASC")
     info(selectQueryBuilder.toString())
 
     val selectPrepared = connection.prepareStatement(selectQueryBuilder.toString())
@@ -242,7 +247,11 @@ object DatabaseOperations {
     val rs = selectPrepared.executeQuery()
     var variants = Array[Variant]()
     while (rs.next()) {
-        val variant = Variant(Option(rs.getInt("id")), rs.getString("chromosome"), rs.getInt("position"), loadString(rs, "reference"), loadString(rs, "alternative"), loadDouble(rs, "quality"), loadString(rs, "rsid"))
+        var rsid = loadString(rs, "rsid")
+        rsid match {
+          case None => rsid = loadString(rs, "dbsnpid")
+        }
+        var variant = Variant(Option(rs.getInt("id")), rs.getString("chromosome"), rs.getInt("position"), loadString(rs, "reference"), loadString(rs, "alternative"), loadDouble(rs, "quality"), rsid)
         variants :+= variant
     }
     variants
