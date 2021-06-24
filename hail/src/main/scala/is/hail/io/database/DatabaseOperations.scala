@@ -192,7 +192,7 @@ object DatabaseOperations {
   }
 
   def loadVariants(connection: Connection, files: Array[String], inputVariants: Array[String]) : Array[Variant] = {
-    var selectQueryBuilder = new StringBuilder("SELECT v.id, chromosome, position, reference, alternative, rsid, quality, string_agg(db.id, ',') as dbsnpid from variants v JOIN datasources d ON v.datasource_id = d.id left outer join dbsnp db on v.chromosome = db.chrom and v.position = db.pos and v.reference = db.ref and v.alternative = db.alt")
+    var selectQueryBuilder = new StringBuilder("SELECT v.id, chromosome, position, reference, alternative, rsid, quality, string_agg(db.id, ',') as dbsnpid from variants v JOIN datasources d ON v.datasource_id = d.id left outer join dbsnp db on v.chromosome = db.chrom and v.position = db.pos and v.reference = db.ref and db.alt like CONCAT(CONCAT('%',v.alternative),'%')")
     var useAnd = false
     if (files.length > 0) {
       useAnd = true
