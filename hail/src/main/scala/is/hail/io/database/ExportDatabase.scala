@@ -154,7 +154,7 @@ object ExportDatabase {
             PCanonicalStruct.empty()
         }
       } else {
-        warn(s"export_vcf found no row field 'info'. Emitting no INFO fields.")
+        warn(s"export_to_database found no row field 'info'. Emitting no INFO fields.")
         PCanonicalStruct.empty()
       }
 

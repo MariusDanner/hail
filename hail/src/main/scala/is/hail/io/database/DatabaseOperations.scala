@@ -270,11 +270,13 @@ object DatabaseOperations {
   }
 
   def writeVariant(connection: Connection, variant: Variant, datasourceId: Long) : Long = {
-    val variantQuery = "INSERT INTO variants (datasource_id, chromosome, position, reference, alternative, snpid, rsid, quality, filters) VALUES (?,?,?,?,?,?,?,?,?)"
+    val variantQuery = "INSERT INTO variants (datasource_id, chromosome, position, reference, alternative, rsid, quality, filters) VALUES (?,?,?,?,?,?,?,?)"
     val usingHana = "com.sap.db.jdbc.Driver".equals(Properties.envOrElse("DB_DRIVER", ""))
     val variantsPrepared = if (usingHana) connection.prepareStatement(variantQuery) else connection.prepareStatement(variantQuery, Statement.RETURN_GENERATED_KEYS)
     variantsPrepared.setLong(1, datasourceId)
-    variantsPrepared.setString(2, variant.chromosome)
+    val chromosome = if (variant.chromosome.startsWith("chr")) variant.chromosome.substring(3) else variant.chromosome
+
+    variantsPrepared.setString(2, chromosome.toInt.toString)
     variantsPrepared.setInt(3, variant.position)
 
     variant.reference match {
@@ -288,14 +290,13 @@ object DatabaseOperations {
     }
 
     variantsPrepared.setNull(6, Types.VARCHAR)
-    variantsPrepared.setNull(7, Types.VARCHAR)
 
     variant.quality match {
-      case Some(quality) => variantsPrepared.setDouble(8, quality)
-      case None => variantsPrepared.setNull(8, Types.DOUBLE)
+      case Some(quality) => variantsPrepared.setDouble(7, quality)
+      case None => variantsPrepared.setNull(7, Types.DOUBLE)
     }
 
-    variantsPrepared.setNull(9, Types.ARRAY)
+    variantsPrepared.setNull(8, Types.ARRAY)
 
 
     variantsPrepared.executeUpdate()

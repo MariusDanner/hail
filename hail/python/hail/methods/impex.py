@@ -503,14 +503,14 @@ def export_to_database(dataset, output, append_to_header=None, parallel=None, me
         mt = MatrixTable.from_rows_table(dataset)
         dataset = mt.key_cols_by(sample="")
 
-    require_col_key_str(dataset, 'export_vcf')
-    require_row_key_variant(dataset, 'export_vcf')
+    require_col_key_str(dataset, 'export_to_database')
+    require_row_key_variant(dataset, 'export_to_database')
 
     info_fields = list(dataset.info) if "info" in dataset.row else []
     invalid_info_fields = [f for f in info_fields if not re.fullmatch(r"^([A-Za-z_][0-9A-Za-z_.]*|1000G)", f)]
     if invalid_info_fields:
         invalid_info_str = ''.join(f'\n    {f!r}' for f in invalid_info_fields)
-        warning('export_vcf: the following info field names are invalid in VCF 4.3 and may not work with some tools: ' + invalid_info_str)
+        warning('export_to_database: the following info field names are invalid in VCF 4.3 and may not work with some tools: ' + invalid_info_str)
 
     row_fields_used = {'rsid', 'info', 'filters', 'qual'}
 
