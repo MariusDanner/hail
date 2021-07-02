@@ -90,17 +90,17 @@ class MatrixRangeReader(MatrixReader):
             other.n_partitions == self.n_partitions
 
 class MatrixDatabaseReader(MatrixReader):
-    @typecheck_method(files=sequenceof(str), samples=sequenceof(str), variants=sequenceof(str),
+    @typecheck_method(files=sequenceof(str), samples=sequenceof(str), ranges=sequenceof(str),
                       annotations=bool, entry_fields=sequenceof(str),
                       min_partitions=nullable(int), tolerance=float, rg=nullable(str),
                       contig_recoding=dictof(str, str), skip_invalid_loci=bool)
-    def __init__(self, files, samples, variants, annotations, entry_fields, min_partitions, tolerance,
+    def __init__(self, files, samples, ranges, annotations, entry_fields, min_partitions, tolerance,
                  rg, contig_recoding, skip_invalid_loci):
         self.config = {
             'name': 'MatrixDatabaseReader',
             'files': files,
             'samples': samples,
-            'variants': variants,
+            'ranges': ranges,
             'annotations': annotations,
             'entryFields': entry_fields,
             'nPartitions': min_partitions,

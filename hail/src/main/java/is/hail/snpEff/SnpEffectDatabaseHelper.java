@@ -19,7 +19,6 @@ import java.sql.SQLException;
 import org.cache2k.Cache;
 import org.cache2k.CacheManager;
 
-import org.snpeff.align.VcfRefAltAlign;
 import org.snpeff.interval.Gene;
 import org.snpeff.interval.Cds;
 import org.snpeff.interval.Chromosome;
@@ -97,7 +96,7 @@ public class SnpEffectDatabaseHelper {
     public List<Marker> loadGenes(Variant variant) throws SQLException {
         Chromosome chr = variant.getChromosome();
 
-        String query = "SELECT g.internalid, g.id, g.intervalstart, g.intervalend, g.strandminus, g.name, g.biotype from snpeff_genes g JOIN snpeff_chromosomes c ON c.internalid = g.parent WHERE c.id = ? AND LEAST(g.intervalend + ?, ?) >= GREATEST(g.intervalstart - ?, ?)";
+        String query = "SELECT g.internalid, g.id, g.intervalstart, g.intervalend, g.strandminus, g.name, g.biotype from snpeff_genes g JOIN snpeff_chromosomes c ON c.internalid = g.parent WHERE c.id = ? AND g.intervalend + ? >= ? AND g.intervalstart - ? <= ?";
         PreparedStatement stmt = connection.prepareStatement(query);
         stmt.setString(1, chr.getId()); //TODO
         stmt.setInt(2, DEFAULT_UP_DOWN_LENGTH);

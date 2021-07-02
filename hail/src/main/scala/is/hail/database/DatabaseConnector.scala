@@ -15,6 +15,11 @@ object DatabaseConnector {
       var connection : Connection = null
       connection = DriverManager.getConnection(url, username, password)
       connection.setAutoCommit(autoCommit)
+      val usingHana = "com.sap.db.jdbc.Driver".equals(Properties.envOrElse("DB_DRIVER", ""))
+      if (usingHana) {
+        val stmt = connection.createStatement()
+        stmt.execute("SET SCHEMA FIBERGENOMICS")
+      }
       connection
   }
 }

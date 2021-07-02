@@ -44,23 +44,25 @@ object MatrixDatabaseReader {
 
     val connection = DatabaseConnector.connectToDatabase(false)
 
-    val samples = if (params.samples.length > 0) params.samples else DatabaseOperations.getAllPatients(connection)
+    val samples = if (params.samples.length > 0) DatabaseOperations.getPatients(connection, params.samples) else DatabaseOperations.getAllPatients(connection)
     val nSamples = samples.length
 
     // FIXME: can't specify multiple chromosomes
-    val variants = DatabaseOperations.loadVariants(connection, params.files, params.variants)
+    val variants = DatabaseOperations.loadVariants(connection, params.files, params.ranges)
 
     val nVariants = variants.length
 
     info(s"Number of variants: $nVariants")
     info(s"Number of samples: $nSamples")
 
+    val sampleIds = DatabaseOperations.getPatientIds(connection, samples)
+
     connection.close()
 
     var rowEntries = Array(
         "locus" -> TLocus.schemaFromRG(referenceGenome),
         "alleles" -> TArray(TString),
-        // "quality" -> TFloat32,
+        "qual" -> TFloat64,
         "rsid" -> TString)
 
     if (params.annotations) {
@@ -94,14 +96,14 @@ object MatrixDatabaseReader {
       entryType = TStruct(entryEntries:_*)
         )
 
-    new MatrixDatabaseReader(params, fullMatrixType, samples, variants, referenceGenome)
+    new MatrixDatabaseReader(params, fullMatrixType, samples, sampleIds, variants, referenceGenome)
   }
 }
 
 case class MatrixDatabaseReaderParameters(
   files: Array[String],
   samples: Array[String],
-  variants: Array[String],
+  ranges: Array[String],
   annotations: Boolean,
   entryFields: Array[String],
   nPartitions: Option[Int],
@@ -114,6 +116,7 @@ class MatrixDatabaseReader(
   val params: MatrixDatabaseReaderParameters,
   val fullMatrixType: MatrixType,
   samples: Array[String],
+  sampleIds: Array[Int],
   variantsArray: Array[Variant],
   referenceGenome: Option[ReferenceGenome]
 ) extends MatrixHybridReader {
@@ -134,7 +137,7 @@ class MatrixDatabaseReader(
 
     val rdd = sc.parallelize(variantsArray)
     val rg = referenceGenome
-    val localSamples = samples
+    val localSamples = sampleIds
 
     val requestedType = tr.typ
     val requestedRowType = requestedType.rowType
@@ -150,6 +153,7 @@ class MatrixDatabaseReader(
     var rowTypes = Map(
       "locus" -> requestedRowType.fieldOption("locus").map(_.typ),
       "alleles" -> requestedRowType.fieldOption("alleles").map(_.typ),
+      "qual" -> requestedRowType.fieldOption("qual").map(_.typ),
       "rsid" -> requestedRowType.fieldOption("rsid").map(_.typ)
     )
 
@@ -187,11 +191,9 @@ class MatrixDatabaseReader(
       ContextRDD.weaken(rdd).cmapPartitions { (ctx, it) =>
         val rvb = ctx.rvb
         val connection = DatabaseConnector.connectToDatabase(false)
-
         val predictor = new SnpEffectDatabasePredictor()
 
         it.map { variant =>
-
           rvb.start(localRVDType.rowType)
           rvb.startStruct()
 
@@ -208,6 +210,10 @@ class MatrixDatabaseReader(
 
           rowTypes("locus").foreach(rvb.addAnnotation(_, locus))
           rowTypes("alleles").foreach(rvb.addAnnotation(_, alleles))
+          variant.quality match {
+            case Some(quality) => rowTypes("qual").foreach(rvb.addAnnotation(_, quality))
+            case None => rowTypes("qual").foreach(rvb.addAnnotation(_, null))
+          }
           variant.rsId match {
             case Some(rsId) => rowTypes("rsid").foreach(rvb.addAnnotation(_, rsId))
             case None => rowTypes("rsid").foreach(rvb.addAnnotation(_, null))

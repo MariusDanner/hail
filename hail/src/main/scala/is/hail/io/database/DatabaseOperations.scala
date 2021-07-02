@@ -141,7 +141,7 @@ object DatabaseOperations {
   }
 
   def getAllPatients(connection: Connection): Array[String] = {
-    val query = "SELECT mrn from patients"
+    val query = "SELECT mrn from patients ORDER BY id ASC"
     val statement = connection.prepareStatement(query)
     val rs = statement.executeQuery()
     var patients = Array[String]()
@@ -151,9 +151,51 @@ object DatabaseOperations {
     patients
   }
 
+  def getPatients(connection: Connection, mrns: Array[String]): Array[String] = {
+    val builder = new StringBuilder;
+    mrns.foreach { mrn =>
+      builder.append("'")
+      builder.append(mrn)
+      builder.append("',")
+    }
+
+    val placeHolders =  builder.deleteCharAt( builder.length -1 ).toString();
+
+    val query = "select mrn from patients where mrn in (" + placeHolders + ") ORDER BY id asc"
+    val statement = connection.prepareStatement(query)
+    val rs = statement.executeQuery()
+    var patients = Array[String]()
+    while (rs.next()) {
+      patients :+= rs.getString("mrn")
+    }
+    patients
+  }
+
+  def getPatientIds(connection: Connection, mrns: Array[String]): Array[Int] = {
+    val builder = new StringBuilder;
+    mrns.foreach { mrn =>
+      builder.append("'")
+      builder.append(mrn)
+      builder.append("',")
+    }
+
+    val placeHolders =  builder.deleteCharAt( builder.length -1 ).toString();
+
+    val query = "select id from patients where mrn in (" + placeHolders + ") ORDER BY id asc"
+    val statement = connection.prepareStatement(query)
+    val rs = statement.executeQuery()
+    var patients = Array[Int]()
+    while (rs.next()) {
+      patients :+= rs.getInt("id")
+    }
+    patients
+  }
+
   def loadVariants(connection: Connection, files: Array[String], inputVariants: Array[String]) : Array[Variant] = {
-    var selectQueryBuilder = new StringBuilder("SELECT v.id, chromosome, position, reference, alternative, rsid, quality from variants v JOIN datasources d ON v.datasource_id = d.id")
+    var selectQueryBuilder = new StringBuilder("SELECT v.id, chromosome, position, reference, alternative, rsid, quality, string_agg(db.id, ',') as dbsnpid from variants v JOIN datasources d ON v.datasource_id = d.id left outer join dbsnp db on v.chromosome = db.chrom and v.position = db.pos and v.reference = db.ref and db.alt like CONCAT(CONCAT('%',v.alternative),'%')")
+    var useAnd = false
     if (files.length > 0) {
+      useAnd = true
       selectQueryBuilder.append(" WHERE d.filename IN(")
       files.foreach { file =>
         selectQueryBuilder.append("'")
@@ -165,26 +207,51 @@ object DatabaseOperations {
     }
 
     if (inputVariants.length > 0) {
-      if (files.length > 0) {
-        selectQueryBuilder.append(" AND ")
+      if (useAnd) {
+        selectQueryBuilder.append(" AND (")
       } else {
-        selectQueryBuilder.append(" WHERE ")
+        selectQueryBuilder.append(" WHERE (")
+        useAnd = true
       }
-      selectQueryBuilder.append("v.rsid IN (")
-      inputVariants.foreach { inputVariants =>
-        selectQueryBuilder.append("'")
-        selectQueryBuilder.append(inputVariants)
-        selectQueryBuilder.append("',")
+      var useOr = false
+
+      inputVariants.foreach { inputRange =>
+        if (useOr) {
+          selectQueryBuilder.append(" OR ")
+        } else {
+          useOr = true
+        }
+
+        if (inputRange.startsWith("rs")) {
+          selectQueryBuilder.append("(v.rsid = '" + inputRange + "' OR db.id = '" + inputRange + "')")
+        } else {
+          val rangeParams = inputRange.split(":")
+
+          selectQueryBuilder.append("(v.chromosome = '")
+          selectQueryBuilder.append(rangeParams(0))
+          selectQueryBuilder.append("' AND position >= ")
+          selectQueryBuilder.append(rangeParams(1))
+          selectQueryBuilder.append(" AND position < ")
+          selectQueryBuilder.append(rangeParams(2))
+          selectQueryBuilder.append(")")
+        }
+
       }
-      selectQueryBuilder.deleteCharAt(selectQueryBuilder.length -1)
       selectQueryBuilder.append(")")
     }
+    selectQueryBuilder.append(" GROUP BY v.id, chromosome, position, reference, alternative, rsid, quality ORDER BY chromosome, position, reference, alternative ASC")
+    info(selectQueryBuilder.toString())
+
     val selectPrepared = connection.prepareStatement(selectQueryBuilder.toString())
 
     val rs = selectPrepared.executeQuery()
     var variants = Array[Variant]()
     while (rs.next()) {
-        val variant = Variant(Option(rs.getInt("id")), rs.getString("chromosome"), rs.getInt("position"), loadString(rs, "reference"), loadString(rs, "alternative"), loadDouble(rs, "quality"), loadString(rs, "rsid"))
+        var rsid = loadString(rs, "rsid")
+        rsid match {
+          case None => rsid = loadString(rs, "dbsnpid")
+        }
+        var variant = Variant(Option(rs.getInt("id")), rs.getString("chromosome"), rs.getInt("position"), loadString(rs, "reference"), loadString(rs, "alternative"), loadDouble(rs, "quality"), rsid)
         variants :+= variant
     }
     variants
@@ -226,7 +293,7 @@ object DatabaseOperations {
     }
   }
 
-  def loadVariantOccurrences(connection: Connection, variantId: Int, samples: Array[String], entryFields: Array[String]) : Array[VariantOccurrence] = {
+  def loadVariantOccurrences(connection: Connection, variantId: Int, samples: Array[Int], entryFields: Array[String]) : Array[VariantOccurrence] = {
 
     val placeholderBuilder = new StringBuilder;
     samples.foreach { mrn =>
@@ -238,7 +305,7 @@ object DatabaseOperations {
     val placeHolders =  placeholderBuilder.deleteCharAt( placeholderBuilder.length -1 ).toString();
 
 
-    val selectQueryBuilder = new StringBuilder("SELECT p.mrn,")
+    val selectQueryBuilder = new StringBuilder("SELECT patient_id,")
     if (entryFields.contains("GT")) {
       selectQueryBuilder.append("genotype1,genotype2,")
     }
@@ -255,7 +322,7 @@ object DatabaseOperations {
       selectQueryBuilder.append("phred_scaled_likelihood_ref,phred_scaled_likelihood_hetero,phred_scaled_likelihood_alt,")
     }
     selectQueryBuilder.deleteCharAt(selectQueryBuilder.length-1)
-    selectQueryBuilder.append(" FROM variant_occurrences vo JOIN patients p ON vo.patient_id = p.id WHERE vo.variant_id = ? AND p.mrn in (" + placeHolders +  ") ORDER BY p.id ASC")
+    selectQueryBuilder.append(" FROM variant_occurrences vo WHERE vo.variant_id = ? AND vo.patient_id in (" + placeHolders +  ") ORDER BY vo.patient_id ASC")
 
     val selectPrepared = connection.prepareStatement(selectQueryBuilder.toString())
     selectPrepared.setInt(1, variantId)
@@ -263,7 +330,7 @@ object DatabaseOperations {
     val rs = selectPrepared.executeQuery()
     var variantOccurrences = Array[VariantOccurrence]()
     while (rs.next()) {
-        val variantOccurrence = VariantOccurrence(-1L, rs.getString("mrn"), loadInt(rs, "genotype1"), loadInt(rs, "genotype2"), loadInt(rs, "genotype_quality"), loadInt(rs, "depth_coverage"), loadInt(rs, "allele_depth_ref"), loadInt(rs, "allele_depth_alt"), loadInt(rs, "phred_scaled_likelihood_ref"), loadInt(rs, "phred_scaled_likelihood_hetero"), loadInt(rs, "phred_scaled_likelihood_alt"))
+        val variantOccurrence = VariantOccurrence(rs.getLong("patient_id"), "", loadInt(rs, "genotype1"), loadInt(rs, "genotype2"), loadInt(rs, "genotype_quality"), loadInt(rs, "depth_coverage"), loadInt(rs, "allele_depth_ref"), loadInt(rs, "allele_depth_alt"), loadInt(rs, "phred_scaled_likelihood_ref"), loadInt(rs, "phred_scaled_likelihood_hetero"), loadInt(rs, "phred_scaled_likelihood_alt"))
         variantOccurrences :+= variantOccurrence
     }
     variantOccurrences
