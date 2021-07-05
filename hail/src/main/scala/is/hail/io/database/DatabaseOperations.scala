@@ -34,11 +34,11 @@ object DatabaseOperations {
       variantOccurrencePrepared.setLong(1, vo.patientId)
       variantOccurrencePrepared.setLong(2, variantId)
       vo.genotype2 match {
-        case Some(gt1) => variantOccurrencePrepared.setInt(3, gt1)
+        case Some(gt1) => variantOccurrencePrepared.setBoolean(3, gt1 == 1)
         case None => variantOccurrencePrepared.setNull(3, Types.INTEGER)
       }
       vo.genotype2 match {
-        case Some(gt2) => variantOccurrencePrepared.setInt(4, gt2)
+        case Some(gt2) => variantOccurrencePrepared.setBoolean(4, gt2 == 1)
         case None => variantOccurrencePrepared.setNull(4, Types.INTEGER)
       }
       vo.genotypeQuality match {
@@ -281,6 +281,18 @@ object DatabaseOperations {
     }
   }
 
+  def loadGenotype(rs: ResultSet, identifier: String): Option[Int] = {
+    try {
+      val value = rs.getBoolean(identifier)
+      if (rs.wasNull())
+        None
+      else
+        Some(if (value) 1 else 0)
+    } catch {
+        case e: Exception => None
+    }
+  }
+
   def loadDouble(rs: ResultSet, identifier: String): Option[Double] = {
     try {
       val value = rs.getDouble(identifier)
@@ -330,7 +342,7 @@ object DatabaseOperations {
     val rs = selectPrepared.executeQuery()
     var variantOccurrences = Array[VariantOccurrence]()
     while (rs.next()) {
-        val variantOccurrence = VariantOccurrence(rs.getLong("patient_id"), "", loadInt(rs, "genotype1"), loadInt(rs, "genotype2"), loadInt(rs, "genotype_quality"), loadInt(rs, "depth_coverage"), loadInt(rs, "allele_depth_ref"), loadInt(rs, "allele_depth_alt"), loadInt(rs, "phred_scaled_likelihood_ref"), loadInt(rs, "phred_scaled_likelihood_hetero"), loadInt(rs, "phred_scaled_likelihood_alt"))
+        val variantOccurrence = VariantOccurrence(rs.getLong("patient_id"), "", loadGenotype(rs, "genotype1"), loadGenotype(rs, "genotype2"), loadInt(rs, "genotype_quality"), loadInt(rs, "depth_coverage"), loadInt(rs, "allele_depth_ref"), loadInt(rs, "allele_depth_alt"), loadInt(rs, "phred_scaled_likelihood_ref"), loadInt(rs, "phred_scaled_likelihood_hetero"), loadInt(rs, "phred_scaled_likelihood_alt"))
         variantOccurrences :+= variantOccurrence
     }
     variantOccurrences
