@@ -22,7 +22,7 @@ import org.apache.spark.broadcast.Broadcast
 import org.json4s.{DefaultFormats, Extraction, Formats, JObject, JValue}
 import java.sql.{Connection,DriverManager, Statement, Types}
 import org.postgresql.Driver
-import is.hail.database.DatabaseConnector
+import is.hail.database.{DatabaseConnector, Datasource}
 import is.hail.snpEff.SnpEffectDatabasePredictor
 import scala.collection.JavaConverters._
 import org.snpeff.interval.BioType
@@ -42,7 +42,8 @@ object MatrixDatabaseReader {
 
     referenceGenome.foreach(ref => ref.validateContigRemap(params.contigRecoding))
 
-    val connection = DatabaseConnector.connectToDatabase(false)
+    val connection = Datasource.datasource.getConnection()
+    connection.setAutoCommit(false)
 
     val samples = if (params.samples.length > 0) DatabaseOperations.getPatients(connection, params.samples) else DatabaseOperations.getAllPatients(connection)
     val nSamples = samples.length
@@ -190,10 +191,11 @@ class MatrixDatabaseReader(
       localRVDType,
       ContextRDD.weaken(rdd).cmapPartitions { (ctx, it) =>
         val rvb = ctx.rvb
-        val connection = DatabaseConnector.connectToDatabase(false)
         val predictor = new SnpEffectDatabasePredictor()
 
         it.map { variant =>
+          val connection = Datasource.datasource.getConnection()
+          connection.setAutoCommit(false)
           rvb.start(localRVDType.rowType)
           rvb.startStruct()
 
@@ -304,7 +306,7 @@ class MatrixDatabaseReader(
             rvb.endArray()
           }
           rvb.endStruct()
-
+          connection.close()
           rvb.end()
         }
       })

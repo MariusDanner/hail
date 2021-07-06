@@ -233,6 +233,7 @@ dependencies {
     bundled group: 'org.postgresql', name: 'postgresql', version: '42.2.19'
     bundled group: 'org.cache2k', name: 'cache2k-api', version: '2.0.0.Final'
     bundled group: 'org.cache2k', name: 'cache2k-core', version: '2.0.0.Final'
+    bundled group: 'com.zaxxer', name: 'HikariCP', version: '3.4.5'
     bundled files('libs/SnpEff-5.0.jar')
     bundled files('libs/ngdbc-2.8.14.jar')
 }

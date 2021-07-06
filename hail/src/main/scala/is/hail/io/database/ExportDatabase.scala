@@ -14,7 +14,7 @@ import is.hail.utils._
 import is.hail.variant.{Call, RegionValueVariant}
 import java.sql.{Connection,DriverManager, Statement, Types}
 import org.postgresql.Driver
-import is.hail.database.DatabaseConnector
+import is.hail.database.{DatabaseConnector, Datasource}
 
 import htsjdk.samtools.util.FileExtensions
 import htsjdk.tribble.SimpleFeature
@@ -125,7 +125,9 @@ object ExportDatabase {
   def apply(ctx: ExecuteContext, mv: MatrixValue, path: String, append: Option[String],
     exportType: String, metadata: Option[VCFMetadata], tabix: Boolean = false) {
 
-    val connection = DatabaseConnector.connectToDatabase(false)
+    // val connection = DatabaseConnector.connectToDatabase(false)
+    val connection = Datasource.datasource.getConnection()
+    connection.setAutoCommit(false)
 
     // write datasource
     val datasourceId = DatabaseOperations.createDatasourceEntry(connection, path)
@@ -150,7 +152,7 @@ object ExportDatabase {
         typ.rowType.field("info").typ match {
           case _: TStruct => mv.rvRowPType.field("info").typ.asInstanceOf[PStruct]
           case t =>
-            warn(s"export_vcf found row field 'info' of type $t, but expected type 'Struct'. Emitting no INFO fields.")
+            warn(s"export_database found row field 'info' of type $t, but expected type 'Struct'. Emitting no INFO fields.")
             PCanonicalStruct.empty()
         }
       } else {
@@ -205,10 +207,11 @@ object ExportDatabase {
       val formatDefinedArray = new Array[Boolean](formatFieldOrder.length)
 
       val rvv = new RegionValueVariant(fullRowType)
+      // val localConnection = DatabaseConnector.connectToDatabase(false)
+
       it.map { ptr =>
-
-        val localConnection = DatabaseConnector.connectToDatabase(false)
-
+        val localConnection = Datasource.datasource.getConnection()
+        localConnection.setAutoCommit(false)
         rvv.set(ptr)
 
         if (idExists && fullRowType.isFieldDefined(ptr, idIdx)) { // TODO add rsid here
@@ -257,7 +260,6 @@ object ExportDatabase {
         }
         localConnection.commit()
         localConnection.close()
-
       }
     }.collect()
 
