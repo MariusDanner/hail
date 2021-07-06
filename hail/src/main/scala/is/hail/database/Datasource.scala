@@ -16,6 +16,6 @@ object Datasource {
     config.setPassword(password)
     config.setMaximumPoolSize(8)
     config.setDriverClassName(driver)
-    config.setDatasourceProperty("reWriteBatchedInserts", "true")
+    config.addDataSourceProperty("reWriteBatchedInserts", "true")
     val datasource = new HikariDataSource(config)
 }
