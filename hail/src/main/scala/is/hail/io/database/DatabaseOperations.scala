@@ -15,6 +15,9 @@ import is.hail.io.fs.FS
 import is.hail.utils._
 import is.hail.variant.{Call, RegionValueVariant}
 import java.sql.{Connection,DriverManager, Statement, Types, ResultSet}
+import java.io.StringReader
+import org.postgresql.copy.CopyManager
+import org.postgresql.core.BaseConnection
 import org.postgresql.Driver
 
 import htsjdk.samtools.util.FileExtensions
@@ -26,6 +29,84 @@ import scala.collection.mutable.HashMap
 
 object DatabaseOperations {
 
+  def copyVariantOccurrences(connection: Connection, variantId: Long, variantOccurrences: Array[VariantOccurrence]) {
+    val stringBuilder = new StringBuilder;
+    variantOccurrences.foreach { vo =>
+      stringBuilder.append(variantId)
+      stringBuilder.append(",")
+      stringBuilder.append(vo.patientId)
+      stringBuilder.append(",")
+      vo.genotype1 match {
+        case Some(q) => {
+          stringBuilder.append(q)
+        }
+        case None =>
+      }
+      stringBuilder.append(",")
+      vo.genotype2 match {
+        case Some(q) => {
+          stringBuilder.append(q)
+        }
+        case None =>
+      }
+      stringBuilder.append(",")
+      vo.genotypeQuality match {
+        case Some(q) => {
+          stringBuilder.append(q)
+        }
+        case None =>
+      }
+      stringBuilder.append(",")
+      vo.depthCoverage match {
+        case Some(q) => {
+          stringBuilder.append(q)
+        }
+        case None =>
+      }
+      stringBuilder.append(",")
+      vo.alleleDepthRef match {
+        case Some(q) => {
+          stringBuilder.append(q)
+        }
+        case None =>
+      }
+      stringBuilder.append(",")
+      vo.alleleDepthAlt match {
+        case Some(q) => {
+          stringBuilder.append(q)
+        }
+        case None =>
+      }
+      stringBuilder.append(",")
+      vo.phredRef match {
+        case Some(q) => {
+          stringBuilder.append(q)
+        }
+        case None =>
+      }
+      stringBuilder.append(",")
+      vo.phredHetero match {
+        case Some(q) => {
+          stringBuilder.append(q)
+        }
+        case None =>
+      }
+      stringBuilder.append(",")
+      vo.phredAlt match {
+        case Some(q) => {
+          stringBuilder.append(q)
+        }
+        case None =>
+      }
+      stringBuilder.append("\n")
+    }
+    val reader = new StringReader(stringBuilder.toString)
+    val pgconn = connection.asInstanceOf[BaseConnection]
+    val copyManager = new CopyManager(pgconn);
+    val copySql = "COPY variant_occurrences FROM STDIN CSV DELIMITER ','";
+    copyManager.copyIn(copySql, reader)
+  }
+
   def writeVariantOccurrences(connection: Connection, variantId: Long, variantOccurrences: Array[VariantOccurrence]) {
     val variantOccurrenceQuery = "INSERT INTO variant_occurrences (patient_id, variant_id, genotype1, genotype2, genotype_quality, depth_coverage, allele_depth_ref, allele_depth_alt, phred_scaled_likelihood_ref, phred_scaled_likelihood_hetero, phred_scaled_likelihood_alt) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
     val variantOccurrencePrepared = connection.prepareStatement(variantOccurrenceQuery)
@@ -35,11 +116,11 @@ object DatabaseOperations {
       variantOccurrencePrepared.setLong(2, variantId)
       vo.genotype2 match {
         case Some(gt1) => variantOccurrencePrepared.setBoolean(3, gt1 == 1)
-        case None => variantOccurrencePrepared.setNull(3, Types.INTEGER)
+        case None => variantOccurrencePrepared.setNull(3, Types.BOOLEAN)
       }
       vo.genotype2 match {
         case Some(gt2) => variantOccurrencePrepared.setBoolean(4, gt2 == 1)
-        case None => variantOccurrencePrepared.setNull(4, Types.INTEGER)
+        case None => variantOccurrencePrepared.setNull(4, Types.BOOLEAN)
       }
       vo.genotypeQuality match {
         case Some(gq) => variantOccurrencePrepared.setInt(5, gq)

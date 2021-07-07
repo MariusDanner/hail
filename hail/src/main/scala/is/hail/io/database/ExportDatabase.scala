@@ -207,10 +207,10 @@ object ExportDatabase {
       val formatDefinedArray = new Array[Boolean](formatFieldOrder.length)
 
       val rvv = new RegionValueVariant(fullRowType)
-      // val localConnection = DatabaseConnector.connectToDatabase(false)
 
       it.map { ptr =>
         val localConnection = Datasource.datasource.getConnection()
+        // val localConnection = DatabaseConnector.connectToDatabase(false)
         localConnection.setAutoCommit(false)
         rvv.set(ptr)
 
@@ -256,6 +256,7 @@ object ExportDatabase {
             }
             i += 1
           }
+          // DatabaseOperations.copyVariantOccurrences(localConnection, variantId, variantOccurrences)
           DatabaseOperations.writeVariantOccurrences(localConnection, variantId, variantOccurrences)
         }
         localConnection.commit()

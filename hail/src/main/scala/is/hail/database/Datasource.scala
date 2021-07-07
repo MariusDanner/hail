@@ -14,8 +14,11 @@ object Datasource {
     config.setJdbcUrl(url)
     config.setUsername(username)
     config.setPassword(password)
-    config.setMaximumPoolSize(8)
+    config.setMaximumPoolSize(6)
     config.setDriverClassName(driver)
+    config.addDataSourceProperty("cachePrepStmts", "true");
+    config.addDataSourceProperty("prepStmtCacheSize", "1000");
+    config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
     config.addDataSourceProperty("reWriteBatchedInserts", "true")
     val datasource = new HikariDataSource(config)
 }
