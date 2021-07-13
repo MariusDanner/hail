@@ -127,7 +127,6 @@ object ExportDatabase {
 
     // val connection = DatabaseConnector.connectToDatabase(false)
     val connection = Datasource.datasource.getConnection()
-    connection.setAutoCommit(false)
 
     // write datasource
     val datasourceId = DatabaseOperations.createDatasourceEntry(connection, path)
@@ -208,10 +207,17 @@ object ExportDatabase {
 
       val rvv = new RegionValueVariant(fullRowType)
 
+      var localConnection = Datasource.datasource.getConnection()
+
+      var counter = 0
+
       it.map { ptr =>
-        val localConnection = Datasource.datasource.getConnection()
-        // val localConnection = DatabaseConnector.connectToDatabase(false)
-        localConnection.setAutoCommit(false)
+        if (counter % 1000 == 0) {
+          localConnection.commit()
+          localConnection.close()
+          localConnection = Datasource.datasource.getConnection()
+        }
+
         rvv.set(ptr)
 
         val rsId  = (idExists && fullRowType.isFieldDefined(ptr, idIdx)) match {
@@ -223,6 +229,11 @@ object ExportDatabase {
             None
           }
         }
+        if (counter % 100 == 0) {
+          warn("" + counter)
+        }
+
+
 
 
         // if (rvv.alleles().length > 1) {
@@ -263,9 +274,13 @@ object ExportDatabase {
           }
           // DatabaseOperations.copyVariantOccurrences(localConnection, variantId, variantOccurrences)
           DatabaseOperations.writeVariantOccurrences(localConnection, variantId, variantOccurrences)
+          DatabaseOperations.writeVariantOccurrencestoFile("test.csv", variantId, variantOccurrences)
         }
-        localConnection.commit()
-        localConnection.close()
+        counter += 1
+        if (it.isEmpty) {
+          localConnection.commit()
+          localConnection.close()
+        }
       }
     }.collect()
 

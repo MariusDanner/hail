@@ -43,7 +43,6 @@ object MatrixDatabaseReader {
     referenceGenome.foreach(ref => ref.validateContigRemap(params.contigRecoding))
 
     val connection = Datasource.datasource.getConnection()
-    connection.setAutoCommit(false)
 
     val samples = if (params.samples.length > 0) DatabaseOperations.getPatients(connection, params.samples) else DatabaseOperations.getAllPatients(connection)
     val nSamples = samples.length
@@ -195,7 +194,6 @@ class MatrixDatabaseReader(
 
         it.map { variant =>
           val connection = Datasource.datasource.getConnection()
-          connection.setAutoCommit(false)
           rvb.start(localRVDType.rowType)
           rvb.startStruct()
 

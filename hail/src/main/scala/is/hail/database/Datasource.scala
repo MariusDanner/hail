@@ -16,6 +16,7 @@ object Datasource {
     config.setPassword(password)
     config.setMaximumPoolSize(6)
     config.setDriverClassName(driver)
+    config.setAutoCommit(false)
     config.addDataSourceProperty("cachePrepStmts", "true");
     config.addDataSourceProperty("prepStmtCacheSize", "1000");
     config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
