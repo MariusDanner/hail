@@ -214,9 +214,14 @@ object ExportDatabase {
         localConnection.setAutoCommit(false)
         rvv.set(ptr)
 
-        if (idExists && fullRowType.isFieldDefined(ptr, idIdx)) { // TODO add rsid here
-          // val idOffset = fullRowType.loadField(ptr, idIdx)
-          // sb.append(fullRowType.types(idIdx).asInstanceOf[PString].loadString(idOffset))
+        val rsId  = (idExists && fullRowType.isFieldDefined(ptr, idIdx)) match {
+          case true => {
+            val idOffset = fullRowType.loadField(ptr, idIdx)
+            Option(fullRowType.types(idIdx).asInstanceOf[PString].loadString(idOffset))
+          }
+          case false => {
+            None
+          }
         }
 
 
@@ -242,7 +247,7 @@ object ExportDatabase {
         //    variantsPrepared.setString(8, ".")
         }
 
-        val variant = Variant(None, rvv.contig(), rvv.position(), reference, alternative, quality, None)
+        val variant = Variant(None, rvv.contig(), rvv.position(), reference, alternative, quality, rsId)
         val variantId = DatabaseOperations.writeVariant(localConnection, variant, datasourceId)
 
         if (hasSamples) { // start variant_occurrences

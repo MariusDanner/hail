@@ -449,7 +449,10 @@ object DatabaseOperations {
       case None => variantsPrepared.setNull(5, Types.VARCHAR)
     }
 
-    variantsPrepared.setNull(6, Types.VARCHAR)
+    variant.rsId match {
+      case Some(rsId) => variantsPrepared.setString(6, rsId)
+      case None => variantsPrepared.setNull(6, Types.VARCHAR)
+    }
 
     variant.quality match {
       case Some(quality) => variantsPrepared.setDouble(7, quality)
