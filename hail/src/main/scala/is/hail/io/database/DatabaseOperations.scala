@@ -156,6 +156,82 @@ object DatabaseOperations {
     variantOccurrencePrepared.executeBatch()
   }
 
+  def writeVariantOccurrencesToString(variantId: Long, variantOccurrences: Array[VariantOccurrence]) : String = {
+    val stringBuilder = new StringBuilder;
+    variantOccurrences.foreach { vo =>
+      stringBuilder.append(variantId)
+      stringBuilder.append(",")
+      stringBuilder.append(vo.patientId)
+      stringBuilder.append(",")
+      vo.genotype1 match {
+        case Some(q) => {
+          stringBuilder.append(q)
+        }
+        case None =>
+      }
+      stringBuilder.append(",")
+      vo.genotype2 match {
+        case Some(q) => {
+          stringBuilder.append(q)
+        }
+        case None =>
+      }
+      stringBuilder.append(",")
+      vo.genotypeQuality match {
+        case Some(q) => {
+          stringBuilder.append(q)
+        }
+        case None =>
+      }
+      stringBuilder.append(",")
+      vo.depthCoverage match {
+        case Some(q) => {
+          stringBuilder.append(q)
+        }
+        case None =>
+      }
+      stringBuilder.append(",")
+      vo.alleleDepthRef match {
+        case Some(q) => {
+          stringBuilder.append(q)
+        }
+        case None =>
+      }
+      stringBuilder.append(",")
+      vo.alleleDepthAlt match {
+        case Some(q) => {
+          stringBuilder.append(q)
+        }
+        case None =>
+      }
+      stringBuilder.append(",")
+      vo.phredRef match {
+        case Some(q) => {
+          stringBuilder.append(q)
+        }
+        case None =>
+      }
+      stringBuilder.append(",")
+      vo.phredHetero match {
+        case Some(q) => {
+          stringBuilder.append(q)
+        }
+        case None =>
+      }
+      stringBuilder.append(",")
+      vo.phredAlt match {
+        case Some(q) => {
+          stringBuilder.append(q)
+        }
+        case None =>
+      }
+      stringBuilder.append("\n")
+    }
+    stringBuilder.deleteCharAt(stringBuilder.length - 1)
+    stringBuilder.result()
+  }
+
+
   def getOrCreatePatients(connection : Connection, patients : IndexedSeq[String]): Array[Long] = {
     var patientsMap = Map[String, Long]()
 

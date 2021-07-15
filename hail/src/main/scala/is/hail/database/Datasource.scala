@@ -9,12 +9,13 @@ object Datasource {
     private val url = Properties.envOrElse("DB_URL", "jdbc:postgresql://vm-danner.dhclab.i.hpi.de:5432/postgres")
     private val username  = Properties.envOrElse("DB_USER", "postgres")
     private val password = Properties.envOrElse("DB_PASSWORD", "postgres")
+    private val connectionLimit = Properties.envOrElse("DB_CONNECTION_LIMIT", "8")
 
     private val config = new HikariConfig()
     config.setJdbcUrl(url)
     config.setUsername(username)
     config.setPassword(password)
-    config.setMaximumPoolSize(6)
+    config.setMaximumPoolSize(connectionLimit.toInt)
     config.setDriverClassName(driver)
     config.setAutoCommit(false)
     config.addDataSourceProperty("cachePrepStmts", "true");

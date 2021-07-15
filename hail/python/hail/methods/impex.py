@@ -387,8 +387,8 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
            append_to_header=nullable(str),
            parallel=nullable(ir.ExportType.checker),
            metadata=nullable(dictof(str, dictof(str, dictof(str, str)))),
-           tabix=bool)
-def export_to_database(dataset, output, append_to_header=None, parallel=None, metadata=None, *, tabix=False):
+           vo_to_file=bool)
+def export_to_database(dataset, output, append_to_header=None, parallel=None, metadata=None, *, vo_to_file=False):
     """Export a :class:`.MatrixTable` to a database
 
     .. include:: ../_templates/req_tvariant.rst
@@ -534,7 +534,7 @@ def export_to_database(dataset, output, append_to_header=None, parallel=None, me
                                 append_to_header,
                                 parallel,
                                 metadata,
-                                tabix)
+                                vo_to_file)
     Env.backend().execute(ir.MatrixWrite(dataset._mir, writer))
 
 

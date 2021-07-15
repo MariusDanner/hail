@@ -60,13 +60,13 @@ class MatrixDatabaseWriter(MatrixWriter):
                       append=nullable(str),
                       export_type=ExportType.checker,
                       metadata=nullable(dictof(str, dictof(str, dictof(str, str)))),
-                      tabix=bool)
-    def __init__(self, path, append, export_type, metadata, tabix):
+                      vo_to_file=bool)
+    def __init__(self, path, append, export_type, metadata, vo_to_file):
         self.path = path
         self.append = append
         self.export_type = export_type
         self.metadata = metadata
-        self.tabix = tabix
+        self.vo_to_file = vo_to_file
 
     def render(self):
         writer = {'name': 'MatrixDatabaseWriter',
@@ -74,7 +74,7 @@ class MatrixDatabaseWriter(MatrixWriter):
                   'append': self.append,
                   'exportType': self.export_type,
                   'metadata': self.metadata,
-                  'tabix': self.tabix}
+                  'voToFile': self.vo_to_file}
         return escape_str(json.dumps(writer))
 
     def __eq__(self, other):
@@ -83,7 +83,7 @@ class MatrixDatabaseWriter(MatrixWriter):
             other.append == self.append and \
             other.export_type == self.export_type and \
             other.metadata == self.metadata and \
-            other.tabix == self.tabix
+            other.vo_to_file == self.vo_to_file
 
 
 class MatrixVCFWriter(MatrixWriter):

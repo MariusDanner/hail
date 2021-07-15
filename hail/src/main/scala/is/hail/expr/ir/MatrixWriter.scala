@@ -327,9 +327,9 @@ case class MatrixDatabaseWriter(
   append: Option[String] = None,
   exportType: String = ExportType.CONCATENATED,
   metadata: Option[VCFMetadata] = None,
-  tabix: Boolean = false
+  voToFile: Boolean = false
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportDatabase(ctx, mv, path, append, exportType, metadata, tabix)
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportDatabase(ctx, mv, path, append, exportType, metadata, voToFile)
 }
 
 case class MatrixGENWriter(
