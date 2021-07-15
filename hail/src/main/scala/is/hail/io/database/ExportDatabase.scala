@@ -18,7 +18,6 @@ import is.hail.database.{DatabaseConnector, Datasource}
 
 import htsjdk.samtools.util.FileExtensions
 import htsjdk.tribble.SimpleFeature
-import htsjdk.tribble.index.tabix.{TabixIndexCreator, TabixFormat}
 
 import scala.io.Source
 import scala.collection.mutable.HashMap
@@ -123,7 +122,7 @@ object ExportDatabase {
   }
 
   def apply(ctx: ExecuteContext, mv: MatrixValue, path: String, append: Option[String],
-    exportType: String, metadata: Option[VCFMetadata], tabix: Boolean = false) {
+    exportType: String, metadata: Option[VCFMetadata], voToFile: Boolean = false) {
 
     // val connection = DatabaseConnector.connectToDatabase(false)
     val connection = Datasource.datasource.getConnection()
@@ -200,89 +199,173 @@ object ExportDatabase {
     val fullRowType = mv.rvRowPType
     val localEntriesIndex = mv.entriesIdx
     val localEntriesType = mv.entryArrayPType
+    if (!voToFile) {
+      mv.rvd.mapPartitions { (_, it) =>
 
-    mv.rvd.mapPartitions { (_, it) =>
+        val formatDefinedArray = new Array[Boolean](formatFieldOrder.length)
 
-      val formatDefinedArray = new Array[Boolean](formatFieldOrder.length)
+        val rvv = new RegionValueVariant(fullRowType)
 
-      val rvv = new RegionValueVariant(fullRowType)
+        var localConnection = Datasource.datasource.getConnection()
 
-      var localConnection = Datasource.datasource.getConnection()
+        var counter = 0
 
-      var counter = 0
-
-      it.map { ptr =>
-        if (counter % 1000 == 0) {
-          localConnection.commit()
-          localConnection.close()
-          localConnection = Datasource.datasource.getConnection()
-        }
-
-        rvv.set(ptr)
-
-        val rsId  = (idExists && fullRowType.isFieldDefined(ptr, idIdx)) match {
-          case true => {
-            val idOffset = fullRowType.loadField(ptr, idIdx)
-            Option(fullRowType.types(idIdx).asInstanceOf[PString].loadString(idOffset))
+        it.map { ptr =>
+          if (counter % 1000 == 0) {
+            localConnection.commit()
+            localConnection.close()
+            localConnection = Datasource.datasource.getConnection()
           }
-          case false => {
-            None
-          }
-        }
-        if (counter % 100 == 0) {
-          warn("" + counter)
-        }
 
+          rvv.set(ptr)
 
-
-
-        // if (rvv.alleles().length > 1) {
-        //   rvv.alleles().tail.foreachBetween(aa => // TODO multi allelic here
-        //     sb.append(aa))(sb += ',')
-        // }
-        val reference = if (rvv.alleles().length > 0) Option(rvv.alleles()(0)) else None
-        val alternative = if (rvv.alleles().tail.length > 0) Option(rvv.alleles().tail(0)) else None
-
-        val quality = if (qualExists && fullRowType.isFieldDefined(ptr, qualIdx)) Option(Region.loadDouble(fullRowType.loadField(ptr, qualIdx))) else None
-
-        if (filtersExists && fullRowType.isFieldDefined(ptr, filtersIdx)) {
-          val filtersOffset = fullRowType.loadField(ptr, filtersIdx)
-          val filtersLength = filtersPType.loadLength(filtersOffset)
-          // if (filtersLength == 0) {
-          //   sb.append("PASS")
-          //    variantsPrepared.setString(8, "PASS")
-          // } else
-            // variantsPrepared.setString(8, "FILTER") // set filters here
-            // iterableVCF(sb, filtersPType, filtersLength, filtersOffset, ';')
-        // } else {
-        //    variantsPrepared.setString(8, ".")
-        }
-
-        val variant = Variant(None, rvv.contig(), rvv.position(), reference, alternative, quality, rsId)
-        val variantId = DatabaseOperations.writeVariant(localConnection, variant, datasourceId)
-
-        if (hasSamples) { // start variant_occurrences
-
-          val gsOffset = fullRowType.loadField(ptr, localEntriesIndex)
-          var i = 0
-          var variantOccurrences = Array.empty[VariantOccurrence]
-          while (i < localNSamples) {
-            if (localEntriesType.isElementDefined(gsOffset, i)) {
-              variantOccurrences :+= readVariantOccurrence(formatFieldOrder, tg, localEntriesType.loadElement(gsOffset, localNSamples, i), formatDefinedArray, patientsMap(i), variantId) // TODO use patient id
+          val rsId  = (idExists && fullRowType.isFieldDefined(ptr, idIdx)) match {
+            case true => {
+              val idOffset = fullRowType.loadField(ptr, idIdx)
+              Option(fullRowType.types(idIdx).asInstanceOf[PString].loadString(idOffset))
             }
-            i += 1
+            case false => {
+              None
+            }
           }
-          // DatabaseOperations.copyVariantOccurrences(localConnection, variantId, variantOccurrences)
-          DatabaseOperations.writeVariantOccurrences(localConnection, variantId, variantOccurrences)
-          DatabaseOperations.writeVariantOccurrencestoFile("test.csv", variantId, variantOccurrences)
+          if (counter % 100 == 0) {
+            warn("" + counter)
+          }
+
+
+
+
+          // if (rvv.alleles().length > 1) {
+          //   rvv.alleles().tail.foreachBetween(aa => // TODO multi allelic here
+          //     sb.append(aa))(sb += ',')
+          // }
+          val reference = if (rvv.alleles().length > 0) Option(rvv.alleles()(0)) else None
+          val alternative = if (rvv.alleles().tail.length > 0) Option(rvv.alleles().tail(0)) else None
+
+          val quality = if (qualExists && fullRowType.isFieldDefined(ptr, qualIdx)) Option(Region.loadDouble(fullRowType.loadField(ptr, qualIdx))) else None
+
+          if (filtersExists && fullRowType.isFieldDefined(ptr, filtersIdx)) {
+            val filtersOffset = fullRowType.loadField(ptr, filtersIdx)
+            val filtersLength = filtersPType.loadLength(filtersOffset)
+            // if (filtersLength == 0) {
+            //   sb.append("PASS")
+            //    variantsPrepared.setString(8, "PASS")
+            // } else
+              // variantsPrepared.setString(8, "FILTER") // set filters here
+              // iterableVCF(sb, filtersPType, filtersLength, filtersOffset, ';')
+          // } else {
+          //    variantsPrepared.setString(8, ".")
+          }
+
+          val variant = Variant(None, rvv.contig(), rvv.position(), reference, alternative, quality, rsId)
+          val variantId = DatabaseOperations.writeVariant(localConnection, variant, datasourceId)
+
+          if (hasSamples) { // start variant_occurrences
+
+            val gsOffset = fullRowType.loadField(ptr, localEntriesIndex)
+            var i = 0
+            var variantOccurrences = Array.empty[VariantOccurrence]
+            while (i < localNSamples) {
+              if (localEntriesType.isElementDefined(gsOffset, i)) {
+                variantOccurrences :+= readVariantOccurrence(formatFieldOrder, tg, localEntriesType.loadElement(gsOffset, localNSamples, i), formatDefinedArray, patientsMap(i), variantId) // TODO use patient id
+              }
+              i += 1
+            }
+            // DatabaseOperations.copyVariantOccurrences(localConnection, variantId, variantOccurrences)
+            DatabaseOperations.writeVariantOccurrences(localConnection, variantId, variantOccurrences)
+          }
+          counter += 1
+          if (it.isEmpty) {
+            localConnection.commit()
+            localConnection.close()
+          }
         }
-        counter += 1
-        if (it.isEmpty) {
-          localConnection.commit()
-          localConnection.close()
+      }.collect()
+    } else {
+      mv.rvd.mapPartitions { (_, it) =>
+
+        val formatDefinedArray = new Array[Boolean](formatFieldOrder.length)
+
+        val rvv = new RegionValueVariant(fullRowType)
+
+        var localConnection = Datasource.datasource.getConnection()
+
+        var counter = 0
+
+        it.map { ptr =>
+          if (counter % 1000 == 0) {
+            localConnection.commit()
+            localConnection.close()
+            localConnection = Datasource.datasource.getConnection()
+          }
+
+          rvv.set(ptr)
+
+          val rsId  = (idExists && fullRowType.isFieldDefined(ptr, idIdx)) match {
+            case true => {
+              val idOffset = fullRowType.loadField(ptr, idIdx)
+              Option(fullRowType.types(idIdx).asInstanceOf[PString].loadString(idOffset))
+            }
+            case false => {
+              None
+            }
+          }
+          if (counter % 100 == 0) {
+            warn("" + counter)
+          }
+
+
+
+
+          // if (rvv.alleles().length > 1) {
+          //   rvv.alleles().tail.foreachBetween(aa => // TODO multi allelic here
+          //     sb.append(aa))(sb += ',')
+          // }
+          val reference = if (rvv.alleles().length > 0) Option(rvv.alleles()(0)) else None
+          val alternative = if (rvv.alleles().tail.length > 0) Option(rvv.alleles().tail(0)) else None
+
+          val quality = if (qualExists && fullRowType.isFieldDefined(ptr, qualIdx)) Option(Region.loadDouble(fullRowType.loadField(ptr, qualIdx))) else None
+
+          if (filtersExists && fullRowType.isFieldDefined(ptr, filtersIdx)) {
+            val filtersOffset = fullRowType.loadField(ptr, filtersIdx)
+            val filtersLength = filtersPType.loadLength(filtersOffset)
+            // if (filtersLength == 0) {
+            //   sb.append("PASS")
+            //    variantsPrepared.setString(8, "PASS")
+            // } else
+              // variantsPrepared.setString(8, "FILTER") // set filters here
+              // iterableVCF(sb, filtersPType, filtersLength, filtersOffset, ';')
+          // } else {
+          //    variantsPrepared.setString(8, ".")
+          }
+
+          val variant = Variant(None, rvv.contig(), rvv.position(), reference, alternative, quality, rsId)
+          val variantId = DatabaseOperations.writeVariant(localConnection, variant, datasourceId)
+          var voString = ""
+          if (hasSamples) { // start variant_occurrences
+
+            val gsOffset = fullRowType.loadField(ptr, localEntriesIndex)
+            var i = 0
+            var variantOccurrences = Array.empty[VariantOccurrence]
+            while (i < localNSamples) {
+              if (localEntriesType.isElementDefined(gsOffset, i)) {
+                variantOccurrences :+= readVariantOccurrence(formatFieldOrder, tg, localEntriesType.loadElement(gsOffset, localNSamples, i), formatDefinedArray, patientsMap(i), variantId) // TODO use patient id
+              }
+              i += 1
+            }
+            voString = DatabaseOperations.writeVariantOccurrencesToString(variantId, variantOccurrences)
+          }
+          counter += 1
+          if (it.isEmpty) {
+            localConnection.commit()
+            localConnection.close()
+          }
+          voString
         }
-      }
-    }.collect()
+      }.writeTable(ctx, path + ".csv", None)
+
+    }
+
 
   }
 }
