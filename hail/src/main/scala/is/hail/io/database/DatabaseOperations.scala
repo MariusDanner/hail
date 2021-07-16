@@ -31,7 +31,7 @@ object DatabaseOperations {
 
   def copyVariantOccurrences(connection: Connection, variantId: Long, variantOccurrences: Array[VariantOccurrence]) {
     val stringBuilder = new StringBuilder;
-    variantOccurrences.foreach { vo =>
+    variantOccurrences.filter(shouldBeInserted(_)).foreach { vo =>
       stringBuilder.append(variantId)
       stringBuilder.append(",")
       stringBuilder.append(vo.patientId)
@@ -111,16 +111,16 @@ object DatabaseOperations {
     val variantOccurrenceQuery = "INSERT INTO variant_occurrences (patient_id, variant_id, genotype1, genotype2, genotype_quality, depth_coverage, allele_depth_ref, allele_depth_alt, phred_scaled_likelihood_ref, phred_scaled_likelihood_hetero, phred_scaled_likelihood_alt) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
     val variantOccurrencePrepared = connection.prepareStatement(variantOccurrenceQuery)
 
-    variantOccurrences.foreach { vo =>
+    variantOccurrences.filter(shouldBeInserted(_)).foreach { vo =>
       variantOccurrencePrepared.setLong(1, vo.patientId)
       variantOccurrencePrepared.setLong(2, variantId)
-      vo.genotype2 match {
-        case Some(gt1) => variantOccurrencePrepared.setBoolean(3, gt1 == 1)
-        case None => variantOccurrencePrepared.setNull(3, Types.BOOLEAN)
+      vo.genotype1 match {
+        case Some(gt1) => variantOccurrencePrepared.setInt(3, gt1)
+        case None => variantOccurrencePrepared.setNull(3, Types.INTEGER)
       }
       vo.genotype2 match {
-        case Some(gt2) => variantOccurrencePrepared.setBoolean(4, gt2 == 1)
-        case None => variantOccurrencePrepared.setNull(4, Types.BOOLEAN)
+        case Some(gt2) => variantOccurrencePrepared.setInt(4, gt2)
+        case None => variantOccurrencePrepared.setNull(4, Types.INTEGER)
       }
       vo.genotypeQuality match {
         case Some(gq) => variantOccurrencePrepared.setInt(5, gq)
@@ -158,7 +158,7 @@ object DatabaseOperations {
 
   def writeVariantOccurrencesToString(variantId: Long, variantOccurrences: Array[VariantOccurrence]) : String = {
     val stringBuilder = new StringBuilder;
-    variantOccurrences.foreach { vo =>
+    variantOccurrences.filter(shouldBeInserted(_)).foreach { vo =>
       stringBuilder.append(variantId)
       stringBuilder.append(",")
       stringBuilder.append(vo.patientId)
@@ -231,6 +231,17 @@ object DatabaseOperations {
     stringBuilder.result()
   }
 
+  def insertDatasourcePatients(connection: Connection, patients: Array[Long], datasourceId: Long) {
+    val query = "INSERT INTO datasources_patients (datasource_id, patient_id) VALUES (?,?)"
+    val statement = connection.prepareStatement(query)
+    patients.foreach { p =>
+      statement.setLong(1, datasourceId)
+      statement.setLong(2, p)
+      statement.addBatch()
+    }
+    statement.executeBatch()
+    statement.close()
+  }
 
   def getOrCreatePatients(connection : Connection, patients : IndexedSeq[String]): Array[Long] = {
     var patientsMap = Map[String, Long]()
@@ -297,8 +308,8 @@ object DatabaseOperations {
     datasourceId
   }
 
-  def getAllPatients(connection: Connection): Array[String] = {
-    val query = "SELECT mrn from patients ORDER BY id ASC"
+  def getAllPatients(connection: Connection, files: Array[String]): Array[String] = {
+    val query = "SELECT DISTINCT p.id, mrn FROM patients p JOIN datasources_patients dp on p.id = dp.patient_id JOIN datasources d on d.id = dp.datasource_id WHERE d.filename in ('" + files.mkString("','") + "') ORDER BY p.id ASC"
     val statement = connection.prepareStatement(query)
     val rs = statement.executeQuery()
     var patients = Array[String]()
@@ -308,17 +319,10 @@ object DatabaseOperations {
     patients
   }
 
-  def getPatients(connection: Connection, mrns: Array[String]): Array[String] = {
-    val builder = new StringBuilder;
-    mrns.foreach { mrn =>
-      builder.append("'")
-      builder.append(mrn)
-      builder.append("',")
-    }
+  def getPatients(connection: Connection, mrns: Array[String], files: Array[String]): Array[String] = {
 
-    val placeHolders =  builder.deleteCharAt( builder.length -1 ).toString();
+    val query = "SELECT DISTINCT p.id, mrn FROM patients p JOIN datasources_patients dp on p.id = dp.patient_id JOIN datasources d on d.id = dp.datasource_id WHERE d.filename in ('" + files.mkString("','") + "') AND p.mrn in ('" + mrns.mkString("','") + "') ORDER BY p.id ASC"
 
-    val query = "select mrn from patients where mrn in (" + placeHolders + ") ORDER BY id asc"
     val statement = connection.prepareStatement(query)
     val rs = statement.executeQuery()
     var patients = Array[String]()
@@ -462,7 +466,7 @@ object DatabaseOperations {
     }
   }
 
-  def loadVariantOccurrences(connection: Connection, variantId: Int, samples: Array[Int], entryFields: Array[String]) : Array[VariantOccurrence] = {
+  def loadVariantOccurrences(connection: Connection, variantId: Int, samples: Array[Int], entryFields: Array[String]) : Map[Long,VariantOccurrence] = {
 
     val placeholderBuilder = new StringBuilder;
     samples.foreach { mrn =>
@@ -497,10 +501,11 @@ object DatabaseOperations {
     selectPrepared.setInt(1, variantId)
 
     val rs = selectPrepared.executeQuery()
-    var variantOccurrences = Array[VariantOccurrence]()
+    var variantOccurrences = Map[Long,VariantOccurrence]()
     while (rs.next()) {
-        val variantOccurrence = VariantOccurrence(rs.getLong("patient_id"), "", loadGenotype(rs, "genotype1"), loadGenotype(rs, "genotype2"), loadInt(rs, "genotype_quality"), loadInt(rs, "depth_coverage"), loadInt(rs, "allele_depth_ref"), loadInt(rs, "allele_depth_alt"), loadInt(rs, "phred_scaled_likelihood_ref"), loadInt(rs, "phred_scaled_likelihood_hetero"), loadInt(rs, "phred_scaled_likelihood_alt"))
-        variantOccurrences :+= variantOccurrence
+        val patientId = rs.getLong("patient_id")
+        val variantOccurrence = VariantOccurrence(patientId, "", loadInt(rs, "genotype1"), loadInt(rs, "genotype2"), loadInt(rs, "genotype_quality"), loadInt(rs, "depth_coverage"), loadInt(rs, "allele_depth_ref"), loadInt(rs, "allele_depth_alt"), loadInt(rs, "phred_scaled_likelihood_ref"), loadInt(rs, "phred_scaled_likelihood_hetero"), loadInt(rs, "phred_scaled_likelihood_alt"))
+        variantOccurrences += (patientId -> variantOccurrence)
     }
     variantOccurrences
   }
@@ -579,6 +584,65 @@ object DatabaseOperations {
       sequenceValue = sequenceValueResultSet.getLong("val")
     }
     sequenceValue
+  }
+
+  def shouldBeInserted(vo: VariantOccurrence) : Boolean = {
+    var shouldBeInserted = false
+    vo.genotype1 match {
+        case Some(q) => {
+          shouldBeInserted = q > 0
+        }
+        case None =>
+    }
+    vo.genotype2 match {
+      case Some(q) => {
+        shouldBeInserted = shouldBeInserted || q > 0
+      }
+      case None =>
+    }
+    vo.genotypeQuality match {
+      case Some(q) => {
+        shouldBeInserted = true
+      }
+      case None =>
+    }
+    vo.depthCoverage match {
+      case Some(q) => {
+        shouldBeInserted = true
+      }
+      case None =>
+    }
+    vo.alleleDepthRef match {
+      case Some(q) => {
+        shouldBeInserted = true
+      }
+      case None =>
+    }
+    vo.alleleDepthAlt match {
+      case Some(q) => {
+        shouldBeInserted = true
+      }
+      case None =>
+    }
+    vo.phredRef match {
+      case Some(q) => {
+        shouldBeInserted = true
+      }
+      case None =>
+    }
+    vo.phredHetero match {
+      case Some(q) => {
+        shouldBeInserted = true
+      }
+      case None =>
+    }
+    vo.phredAlt match {
+      case Some(q) => {
+        shouldBeInserted = true
+      }
+      case None =>
+    }
+    shouldBeInserted
   }
 }
 

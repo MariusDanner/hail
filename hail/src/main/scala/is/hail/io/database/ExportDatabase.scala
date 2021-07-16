@@ -164,6 +164,7 @@ object ExportDatabase {
 
 
     val patientsMap = DatabaseOperations.getOrCreatePatients(connection, mv.stringSampleIds)
+    DatabaseOperations.insertDatasourcePatients(connection, patientsMap, datasourceId)
 
 
     connection.commit()
@@ -227,9 +228,6 @@ object ExportDatabase {
             case false => {
               None
             }
-          }
-          if (counter % 100 == 0) {
-            warn("" + counter)
           }
 
 
@@ -309,9 +307,6 @@ object ExportDatabase {
             case false => {
               None
             }
-          }
-          if (counter % 100 == 0) {
-            warn("" + counter)
           }
 
 

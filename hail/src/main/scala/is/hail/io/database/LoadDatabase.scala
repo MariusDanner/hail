@@ -44,7 +44,7 @@ object MatrixDatabaseReader {
 
     val connection = Datasource.datasource.getConnection()
 
-    val samples = if (params.samples.length > 0) DatabaseOperations.getPatients(connection, params.samples) else DatabaseOperations.getAllPatients(connection)
+    val samples = if (params.samples.length > 0) DatabaseOperations.getPatients(connection, params.samples, params.files) else DatabaseOperations.getAllPatients(connection, params.files)
     val nSamples = samples.length
 
     // FIXME: can't specify multiple chromosomes
@@ -253,7 +253,8 @@ class MatrixDatabaseReader(
           if (!dropCols) {
             val variantOccurrences = DatabaseOperations.loadVariantOccurrences(connection, variant.id.get, localSamples, localEntryFields)
             rvb.startArray(localNSamples)
-            variantOccurrences.foreach { variantOccurrence =>
+            localSamples.foreach { patientId =>
+              val variantOccurrence = if (variantOccurrences.contains(patientId)) variantOccurrences(patientId) else VariantOccurrence(patientId, "", Some(0), Some(0), None, None, None, None, None, None, None)
               rvb.startStruct()
               if (entryTypes.contains("GT")) {
                 variantOccurrence.genotype1 match {
