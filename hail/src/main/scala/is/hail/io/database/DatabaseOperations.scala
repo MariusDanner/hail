@@ -227,7 +227,8 @@ object DatabaseOperations {
       }
       stringBuilder.append("\n")
     }
-    stringBuilder.deleteCharAt(stringBuilder.length - 1)
+    if (stringBuilder.length > 0)
+      stringBuilder.deleteCharAt(stringBuilder.length - 1)
     stringBuilder.result()
   }
 
