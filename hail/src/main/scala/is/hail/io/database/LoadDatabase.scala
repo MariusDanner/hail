@@ -204,7 +204,9 @@ class MatrixDatabaseReader(
             case _ =>
           }
           variant.alternative match {
-            case Some(alt) => alleles :+= alt
+            case Some(alt) => {
+              alleles ++= alt.split(",")
+            }
             case _ =>
           }
 

@@ -230,15 +230,9 @@ object ExportDatabase {
             }
           }
 
-
-
-
-          // if (rvv.alleles().length > 1) {
-          //   rvv.alleles().tail.foreachBetween(aa => // TODO multi allelic here
-          //     sb.append(aa))(sb += ',')
-          // }
           val reference = if (rvv.alleles().length > 0) Option(rvv.alleles()(0)) else None
-          val alternative = if (rvv.alleles().tail.length > 0) Option(rvv.alleles().tail(0)) else None
+          val alternativeString = rvv.alleles().tail.mkString(",")
+          val alternative = if (alternativeString.length > 0) Option(alternativeString) else None
 
           val quality = if (qualExists && fullRowType.isFieldDefined(ptr, qualIdx)) Option(Region.loadDouble(fullRowType.loadField(ptr, qualIdx))) else None
 

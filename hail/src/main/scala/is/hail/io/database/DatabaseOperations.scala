@@ -247,16 +247,7 @@ object DatabaseOperations {
   def getOrCreatePatients(connection : Connection, patients : IndexedSeq[String]): Array[Long] = {
     var patientsMap = Map[String, Long]()
 
-    val builder = new StringBuilder;
-    patients.foreach { mrn =>
-      builder.append("'")
-      builder.append(mrn)
-      builder.append("',")
-    }
-
-    val placeHolders =  builder.deleteCharAt( builder.length -1 ).toString();
-
-    val getPatientsQuery = "select id, mrn from patients where mrn in (" + placeHolders + ")"
+    val getPatientsQuery = "select id, mrn from patients where mrn in ('" + patients.mkString("','") + "')"
     val getPatientsStatement = connection.createStatement()
     val getPatientsRs = getPatientsStatement.executeQuery(getPatientsQuery)
     while (getPatientsRs.next()) {
@@ -334,16 +325,8 @@ object DatabaseOperations {
   }
 
   def getPatientIds(connection: Connection, mrns: Array[String]): Array[Int] = {
-    val builder = new StringBuilder;
-    mrns.foreach { mrn =>
-      builder.append("'")
-      builder.append(mrn)
-      builder.append("',")
-    }
 
-    val placeHolders =  builder.deleteCharAt( builder.length -1 ).toString();
-
-    val query = "select id from patients where mrn in (" + placeHolders + ") ORDER BY id asc"
+    val query = "select id from patients where mrn in ('" + mrns.mkString("','") + "') ORDER BY id asc"
     val statement = connection.prepareStatement(query)
     val rs = statement.executeQuery()
     var patients = Array[Int]()
@@ -358,14 +341,7 @@ object DatabaseOperations {
     var useAnd = false
     if (files.length > 0) {
       useAnd = true
-      selectQueryBuilder.append(" WHERE d.filename IN(")
-      files.foreach { file =>
-        selectQueryBuilder.append("'")
-        selectQueryBuilder.append(file)
-        selectQueryBuilder.append("',")
-      }
-      selectQueryBuilder.deleteCharAt(selectQueryBuilder.length -1)
-      selectQueryBuilder.append(")")
+      selectQueryBuilder.append(" WHERE d.filename IN('" + files.mkString("','") + "')")
     }
 
     if (inputVariants.length > 0) {
@@ -469,16 +445,6 @@ object DatabaseOperations {
 
   def loadVariantOccurrences(connection: Connection, variantId: Int, samples: Array[Int], entryFields: Array[String]) : Map[Long,VariantOccurrence] = {
 
-    val placeholderBuilder = new StringBuilder;
-    samples.foreach { mrn =>
-      placeholderBuilder.append("'")
-      placeholderBuilder.append(mrn)
-      placeholderBuilder.append("',")
-    }
-
-    val placeHolders =  placeholderBuilder.deleteCharAt( placeholderBuilder.length -1 ).toString();
-
-
     val selectQueryBuilder = new StringBuilder("SELECT patient_id,")
     if (entryFields.contains("GT")) {
       selectQueryBuilder.append("genotype1,genotype2,")
@@ -496,7 +462,7 @@ object DatabaseOperations {
       selectQueryBuilder.append("phred_scaled_likelihood_ref,phred_scaled_likelihood_hetero,phred_scaled_likelihood_alt,")
     }
     selectQueryBuilder.deleteCharAt(selectQueryBuilder.length-1)
-    selectQueryBuilder.append(" FROM variant_occurrences vo WHERE vo.variant_id = ? AND vo.patient_id in (" + placeHolders +  ") ORDER BY vo.patient_id ASC")
+    selectQueryBuilder.append(" FROM variant_occurrences vo WHERE vo.variant_id = ? AND vo.patient_id in ('" + samples.mkString("','") +  "') ORDER BY vo.patient_id ASC")
 
     val selectPrepared = connection.prepareStatement(selectQueryBuilder.toString())
     selectPrepared.setInt(1, variantId)
